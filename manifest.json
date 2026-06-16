@@ -1,0 +1,31 @@
+{
+  "name": "Birku Pro Shop System",
+  "short_name": "Birku POS",
+  "description": "Point of Sale & Inventory Management System with barcode scanning",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f8fafc",
+  "theme_color": "#10b981",
+  "lang": "en",
+  "dir": "ltr",
+  "categories": ["business", "productivity", "shopping"],
+  "permissions": ["camera"],
+  "features": ["Camera"],
+  "icons": [
+    {
+      "src": "logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "prefer_related_applications": false
+}

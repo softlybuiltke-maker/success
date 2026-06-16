@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#10b981" />
+  <meta name="description" content="Softly Built POS – Point of Sale & Inventory Management System with barcode scanning, sales history, and offline-first IndexedDB storage." />
+  <link rel="icon" type="image/png" href="/logo.png" />
+  <link rel="manifest" href="/manifest.json" />
+  <title>Softly Built</title>
+
+  <!-- Splash screen CSS (inlined so it shows before JS loads) -->
+  <style>
+    #sb-splash {
+      position: fixed;
+      inset: 0;
+      z-index: 99999;
+      background: linear-gradient(135deg, #ecfdf5 0%, #ffffff 50%, #d1fae5 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      transition: opacity .6s ease;
+      font-family: 'Inter', sans-serif;
+    }
+    #sb-splash.sb-hide { opacity: 0; pointer-events: none; }
+    #sb-splash img {
+      max-width: min(420px, 70vw);
+      width: 100%;
+      height: auto;
+      animation: sbPop .8s cubic-bezier(.2,.9,.3,1.2) both;
+    }
+    #sb-splash .sb-loader {
+      margin-top: 28px;
+      width: 180px;
+      height: 4px;
+      background: #d1fae5;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    #sb-splash .sb-loader::after {
+      content: '';
+      display: block;
+      width: 40%;
+      height: 100%;
+      background: linear-gradient(90deg, #10b981, #047857);
+      border-radius: 999px;
+      animation: sbSlide 1.2s ease-in-out infinite;
+    }
+    #sb-splash .sb-tag {
+      margin-top: 18px;
+      color: #047857;
+      font-weight: 600;
+      letter-spacing: .15em;
+      font-size: 12px;
+      text-transform: uppercase;
+    }
+    @keyframes sbPop {
+      from { opacity: 0; transform: scale(.9) translateY(10px); }
+      to   { opacity: 1; transform: none; }
+    }
+    @keyframes sbSlide {
+      0%   { transform: translateX(-100%); }
+      100% { transform: translateX(350%); }
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Splash screen (shown before React mounts) -->
+  <div id="sb-splash">
+    <img src="/logo.png" alt="Softly Built" />
+    <div class="sb-loader"></div>
+    <div class="sb-tag">Loading…</div>
+  </div>
+
+  <div id="root"></div>
+  <div id="print-area"></div>
+
+  <!-- Vite entry point -->
+  <script type="module" src="/src/main.jsx"></script>
+
+  <!-- Hide splash once React has mounted -->
+  <script>
+    window.addEventListener('load', () => {
+      const splash = document.getElementById('sb-splash');
+      if (splash) {
+        setTimeout(() => splash.classList.add('sb-hide'), 800);
+        setTimeout(() => splash.remove(), 1500);
+      }
+    });
+  </script>
+</body>
+
+</html>
