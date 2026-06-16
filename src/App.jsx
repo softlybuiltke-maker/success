@@ -15,6 +15,9 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
     import autoTable from 'jspdf-autotable';
     import { Html5Qrcode, Html5QrcodeSupportedFormats, Html5QrcodeScannerState } from 'html5-qrcode';
     import QRCode from 'qrcode';
+    import logoSrc from '/logo.png';
+    window.LOGO_DATA = logoSrc;
+
 
     // --- IndexedDB UTILS ---
     const DB_NAME = 'BirkuShopDB';
