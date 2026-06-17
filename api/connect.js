@@ -1,8 +1,9 @@
 // api/connect.js — Vercel Serverless Function (ES Module)
-// Validates a Turso (libSQL) connection using the official @libsql/client.
+// Validates a Turso (libSQL) connection using the HTTP-only client.
+// Uses @libsql/client/web — no native Node bindings, works in Vercel serverless.
 // Stateless — no credentials are stored on the server.
 
-import { createClient } from '@libsql/client';
+import { createClient } from '@libsql/client/web';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -28,9 +29,11 @@ export default async function handler(req, res) {
 
   let client;
   try {
-    // createClient handles libsql:// → WebSocket/HTTP routing automatically
+    // Convert libsql:// to https:// for the HTTP transport
+    const httpUrl = url.trim().replace(/^libsql:\/\//, 'https://');
+
     client = createClient({
-      url: url.trim(),
+      url: httpUrl,
       authToken: token.trim(),
     });
 
