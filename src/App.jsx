@@ -1084,6 +1084,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
       const [search, setSearch] = useState(''); const [cat, setCat] = useState(''); const [scannerMode, setScannerMode] = useState(null); const [showImport, setShowImport] = useState(false); const [updateId, setUpdateId] = useState(null); const [form, setForm] = useState({ name: '', price: '', cost: '', stock: '', cat: '', code: '', isCommodity: false, unit: 'Kg', expiryDate: '' }); const [showBulkPriceUpdate, setShowBulkPriceUpdate] = useState(false); const [activeTab, setActiveTab] = useState('all'); const [editId, setEditId] = useState(null); const [editData, setEditData] = useState({}); const [isCheckingOut, setIsCheckingOut] = useState(false); const [showOrderModal, setShowOrderModal] = useState(false); const [showShoppingListModal, setShowShoppingListModal] = useState(false); const [shoppingListItems, setShoppingListItems] = useState([]); const [printShoppingListNow, setPrintShoppingListNow] = useState(false); const [selectedOrderItems, setSelectedOrderItems] = useState([]); const [initialSupplierId, setInitialSupplierId] = useState(null); const [showAttractMode, setShowAttractMode] = useState(false); const [showAddProduct, setShowAddProduct] = useState(false); const role = currentUser?.role; const perms = currentUser?.permissions || {};
       const [viewStock, setViewStock] = useState(false); const [stockSearch, setStockSearch] = useState(''); const [stockDateRange, setStockDateRange] = useState({ start: '', end: '' });
       const [currentPage, setCurrentPage] = useState(1);
+      const [prodTab, setProdTab] = useState('manage');
       
       useEffect(() => { setCurrentPage(1); }, [search, cat, activeTab]);
 
@@ -1237,8 +1238,6 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
         window.addEventListener('keydown', handleGlobalScan);
         return () => window.removeEventListener('keydown', handleGlobalScan);
       }, [products, addToCart]); 
-
-      const [prodTab, setProdTab] = useState('manage');
 
       if (printData) return <PrintReceipt data={printData} onDone={() => { setPrintData(null); onClear(); }} settings={settings} />;
 
