@@ -1,6 +1,6 @@
 {
-  "name": "Birku Pro Shop System",
-  "short_name": "Birku POS",
+  "name": "Softly POS",
+  "short_name": "Softly POS",
   "description": "Point of Sale & Inventory Management System with barcode scanning",
   "start_url": "./index.html",
   "scope": "./",
