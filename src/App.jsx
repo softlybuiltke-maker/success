@@ -150,20 +150,52 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
       }
     };
 
-    // Sync all collections at once (used on initial connect)
+    // Sync all collections at once (used on initial connect if Turso is empty)
     const tursoSyncAll = async () => {
       try {
-        const keys = ['products', 'salesHistory', 'customers', 'debts', 'paidDebts', 'expenses', 'stockHistory', 'settings'];
+        const keys = ['products', 'salesHistory', 'customers', 'debts', 'paidDebts', 'expenses', 'stockHistory', 'settings', 'superAdminSettings'];
         for (const k of keys) {
-          const val = await loadDataFromDB(k);
-          if (val !== undefined && val !== null) {
-            await tursoSync(k, val);
+          let val = await loadDataFromDB(k);
+          if (val === undefined || val === null) {
+            // Default empty state for collections if they haven't been created yet
+            val = (k === 'settings' || k === 'superAdminSettings') ? {} : [];
           }
+          await tursoSync(k, val);
         }
       } catch (_) {
         // Silent
       }
     };
+
+    // Pull all data from Turso and overwrite local DB (used when connecting to existing DB)
+    const tursoPullAll = async () => {
+      try {
+        const raw = localStorage.getItem('db_session');
+        if (!raw) return false;
+        const { url, token } = JSON.parse(raw);
+        if (!url || !token) return false;
+        
+        const res = await fetch('/api/pull', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url, token }),
+        });
+        const result = await res.json();
+        
+        if (result.ok && result.data && Object.keys(result.data).length > 0) {
+          // Data found! Save it to local DB
+          for (const [key, value] of Object.entries(result.data)) {
+            await saveDataToDB(key, value);
+          }
+          return true; // Indicates we pulled data
+        }
+        return false; // Turso is empty or failed
+      } catch (err) {
+        console.error("Turso pull error:", err);
+        return false;
+      }
+    };
+    // ─────────────────────────────────────────────────────────────────────────
 
     // --- CONSTANTS ---
     const PRESET_SOUNDS = [
@@ -2253,13 +2285,23 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
           if (data.ok) {
             localStorage.setItem('db_session', JSON.stringify({ url: trimmedUrl, token: trimmedToken }));
             setIsConnected(true);
-            setStatusMsg('Database connected! Uploading existing data to Turso…');
+            setStatusMsg('Database connected! Checking for existing data...');
             setStatusType('success');
             toast.success('🔗 Database connected!');
-            // Push all existing local data to Turso in background
-            tursoSyncAll().then(() => {
-              setStatusMsg('Database connected. All data synced to Turso ✓');
-            }).catch(() => {});
+            
+            // Try to pull data first. If data exists, it will save to local DB and return true.
+            tursoPullAll().then((pulled) => {
+              if (pulled) {
+                setStatusMsg('Data downloaded from Turso! Reloading app...');
+                setTimeout(() => window.location.reload(), 1500);
+              } else {
+                // If no data exists in Turso, push local data up
+                setStatusMsg('Uploading existing local data to Turso...');
+                tursoSyncAll().then(() => {
+                  setStatusMsg('Database connected. Local data synced to Turso ✓');
+                }).catch(() => {});
+              }
+            });
           } else {
             setStatusMsg(data.error || 'Connection failed. Please check your credentials.');
             setStatusType('error');
@@ -3816,11 +3858,13 @@ id,name,qty,barcode,date,cashierName
       const updateSettings = (newSettings) => {
         setSettings(newSettings);
         saveDataToDB('settings', newSettings);
+        tursoSync('settings', newSettings);
       };
 
       const updateSuperAdminSettings = (newSas) => {
         setSuperAdminSettings(newSas);
         saveDataToDB('superAdminSettings', newSas);
+        tursoSync('superAdminSettings', newSas);
       };
 
       // Auto-lock mechanism
