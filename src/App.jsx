@@ -3943,6 +3943,16 @@ id,name,qty,barcode,date,cashierName
           }
         };
 
+        const handleKeyDown = (e) => {
+          if (!navigator.onLine) {
+            // Block F5 or Ctrl+R / Cmd+R when offline
+            if (e.key === 'F5' || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'r')) {
+              e.preventDefault();
+              toast.error('Reloading is disabled while offline to prevent data loss.', { id: 'offline-reload', duration: 3000 });
+            }
+          }
+        };
+
         const handleOnline = async () => {
           toast.success('Back online! Syncing offline changes...', { id: 'online-status', duration: 4000 });
           // If we have a db_session, push all local data to Turso to sync any offline work
@@ -3958,11 +3968,13 @@ id,name,qty,barcode,date,cashierName
         };
 
         window.addEventListener('beforeunload', handleBeforeUnload);
+        window.addEventListener('keydown', handleKeyDown);
         window.addEventListener('online', handleOnline);
         window.addEventListener('offline', handleOffline);
 
         return () => {
           window.removeEventListener('beforeunload', handleBeforeUnload);
+          window.removeEventListener('keydown', handleKeyDown);
           window.removeEventListener('online', handleOnline);
           window.removeEventListener('offline', handleOffline);
         };
