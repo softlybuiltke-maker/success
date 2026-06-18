@@ -2585,24 +2585,161 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
       const [handle, setHandle] = useState('');
       const [pwd, setPwd] = useState('');
       const [status, setStatus] = useState('');
+      const [saving, setSaving] = useState(false);
+
+      const validatePassword = (p) => {
+        if (p.length < 6) return 'Password must be at least 6 characters long';
+        if (!/[a-zA-Z]/.test(p)) return 'Password must contain at least one letter';
+        if (!/[0-9]/.test(p)) return 'Password must contain at least one number';
+        return null;
+      };
+
+      const checkHandleExists = async (h) => {
+        try {
+          const res = await fetch(`${CLOUD_KV_API}/GetValue/${APP_NAMESPACE}/${encodeURIComponent(h)}_count`);
+          if (!res.ok) return false;
+          const text = await res.text();
+          const clean = text.replace(/["\s]/g, '');
+          return clean && clean !== 'null' && clean.length > 0 && !isNaN(parseInt(clean));
+        } catch { return false; }
+      };
+
+      const generateRecoveryPdf = (storeHandle, masterPwd, creds) => {
+        try {
+          const doc = new jsPDF();
+          const pw = doc.internal.pageSize.getWidth();
+
+          // Header
+          doc.setFillColor(16, 185, 129);
+          doc.rect(0, 0, pw, 45, 'F');
+          doc.setTextColor(255, 255, 255);
+          doc.setFontSize(22);
+          doc.setFont('helvetica', 'bold');
+          doc.text('Softly Built - Recovery Credentials', pw / 2, 22, { align: 'center' });
+          doc.setFontSize(10);
+          doc.setFont('helvetica', 'normal');
+          doc.text('CONFIDENTIAL - Keep this document in a safe place', pw / 2, 34, { align: 'center' });
+
+          // Warning box
+          doc.setFillColor(254, 243, 199);
+          doc.roundedRect(15, 55, pw - 30, 25, 3, 3, 'F');
+          doc.setDrawColor(217, 119, 6);
+          doc.roundedRect(15, 55, pw - 30, 25, 3, 3, 'S');
+          doc.setTextColor(146, 64, 14);
+          doc.setFontSize(9);
+          doc.setFont('helvetica', 'bold');
+          doc.text('⚠  WARNING', 22, 64);
+          doc.setFont('helvetica', 'normal');
+          doc.text('This document contains your store recovery credentials. Anyone with access to this', 22, 71);
+          doc.text('document can access your store data. Store it securely and never share it online.', 22, 77);
+
+          // Credentials section
+          let y = 95;
+          doc.setTextColor(30, 41, 59);
+          doc.setFontSize(14);
+          doc.setFont('helvetica', 'bold');
+          doc.text('Recovery Credentials', 15, y);
+          y += 12;
+
+          const drawField = (label, value, yPos) => {
+            doc.setFillColor(248, 250, 252);
+            doc.roundedRect(15, yPos, pw - 30, 22, 3, 3, 'F');
+            doc.setTextColor(100, 116, 139);
+            doc.setFontSize(9);
+            doc.setFont('helvetica', 'bold');
+            doc.text(label, 22, yPos + 8);
+            doc.setTextColor(15, 23, 42);
+            doc.setFontSize(11);
+            doc.setFont('courier', 'normal');
+            doc.text(String(value || 'N/A'), 22, yPos + 17);
+            return yPos + 28;
+          };
+
+          y = drawField('Store Handle', storeHandle, y);
+          y = drawField('Master Password', masterPwd, y);
+          y += 8;
+
+          // Database credentials section
+          doc.setTextColor(30, 41, 59);
+          doc.setFontSize(14);
+          doc.setFont('helvetica', 'bold');
+          doc.text('Database Credentials (Advanced)', 15, y);
+          y += 12;
+
+          y = drawField('Database URL', (creds && creds.url) ? creds.url : 'N/A', y);
+
+          // Token is long, so handle it specially
+          doc.setFillColor(248, 250, 252);
+          doc.roundedRect(15, y, pw - 30, 32, 3, 3, 'F');
+          doc.setTextColor(100, 116, 139);
+          doc.setFontSize(9);
+          doc.setFont('helvetica', 'bold');
+          doc.text('Auth Token', 22, y + 8);
+          doc.setTextColor(15, 23, 42);
+          doc.setFontSize(7);
+          doc.setFont('courier', 'normal');
+          const tokenStr = String((creds && creds.token) ? creds.token : 'N/A');
+          const tokenLines = doc.splitTextToSize(tokenStr, pw - 50);
+          doc.text(tokenLines.slice(0, 3), 22, y + 16);
+          y += 38;
+
+          // Footer
+          y += 10;
+          doc.setDrawColor(226, 232, 240);
+          doc.line(15, y, pw - 15, y);
+          y += 8;
+          doc.setTextColor(148, 163, 184);
+          doc.setFontSize(8);
+          doc.setFont('helvetica', 'normal');
+          doc.text(`Generated: ${new Date().toLocaleString()}`, 15, y);
+          doc.text('Softly Built POS System', pw - 15, y, { align: 'right' });
+
+          doc.save(`Softly_Recovery_${storeHandle}.pdf`);
+          return true;
+        } catch (err) {
+          console.error('PDF generation error:', err);
+          toast.error('Could not generate recovery PDF. Please try again.');
+          return false;
+        }
+      };
 
       const handleSave = async () => {
         const cleanHandle = handle.trim().replace(/^@/, '');
         if (!cleanHandle || !pwd) return toast.error('Handle and Password are required');
+        
+        const pwdError = validatePassword(pwd);
+        if (pwdError) return toast.error(pwdError);
+
         const raw = localStorage.getItem('db_session');
         if (!raw) return toast.error('No active Turso connection to back up');
+
+        setSaving(true);
+        setStatus('Checking if handle is available...');
+
+        const exists = await checkHandleExists(cleanHandle);
+        if (exists) {
+          setSaving(false);
+          setStatus('');
+          return toast.error(`Handle "${cleanHandle}" is already taken. Please choose a different one.`);
+        }
+
         setStatus('Saving to Cloud Registry...');
         const creds = JSON.parse(raw);
         const ok = await uploadToCloudRegistry(cleanHandle, pwd, creds);
         if (ok) {
           toast.success('Recovery key saved securely!');
-          setStatus('Saved! You can now recover this store on any device using this Handle and Password.');
+          setStatus('Saved! Downloading your backup PDF...');
+          generateRecoveryPdf(cleanHandle, pwd, creds);
+          setStatus('✅ Saved & PDF downloaded! Keep the PDF in a safe place.');
           setHandle(''); setPwd('');
         } else {
           toast.error('Failed to save to Cloud Registry');
           setStatus('Failed to save.');
         }
+        setSaving(false);
       };
+
+      const pwdError = pwd.length > 0 ? validatePassword(pwd) : null;
 
       return (
         <div className="bg-white rounded-2xl p-6 border border-slate-200 mt-6 shadow-sm">
@@ -2611,14 +2748,19 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
             <div>
               <label className="text-xs font-semibold text-slate-500 block mb-1">Store Handle (e.g. JohnsMart)</label>
-              <input value={handle} onChange={e => setHandle(e.target.value)} className="input-field w-full font-mono text-sm" placeholder="@StoreHandle" />
+              <input value={handle} onChange={e => setHandle(e.target.value)} className="input-field w-full font-mono text-sm" placeholder="StoreHandle" />
+              <p className="text-[10px] text-slate-400 mt-1">Must be unique. No @ needed.</p>
             </div>
             <div>
               <label className="text-xs font-semibold text-slate-500 block mb-1">Master Password</label>
-              <input type="password" value={pwd} onChange={e => setPwd(e.target.value)} className="input-field w-full text-sm" placeholder="••••••••" />
+              <input type="password" value={pwd} onChange={e => setPwd(e.target.value)} className={`input-field w-full text-sm ${pwdError ? 'border-red-300 focus:ring-red-400' : ''}`} placeholder="••••••••" />
+              {pwdError && <p className="text-[10px] text-red-500 mt-1">{pwdError}</p>}
+              {!pwdError && pwd.length > 0 && <p className="text-[10px] text-emerald-600 mt-1">✓ Password is valid</p>}
             </div>
           </div>
-          <button onClick={handleSave} className="btn-primary bg-indigo-600 hover:bg-indigo-700 w-full py-3"><Lock className="w-4 h-4" /> Save Recovery Key</button>
+          <button onClick={handleSave} disabled={saving} className={`btn-primary w-full py-3 ${saving ? 'bg-indigo-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'}`}>
+            {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</> : <><Lock className="w-4 h-4" /> Save Recovery Key</>}
+          </button>
           {status && <div className="mt-3 text-sm text-indigo-700 bg-indigo-50 p-3 rounded-lg border border-indigo-100">{status}</div>}
         </div>
       );
