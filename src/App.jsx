@@ -3832,8 +3832,25 @@ id,name,qty,barcode,date,cashierName
     };
 
     const App = () => {
-      const [view, setView] = useState('landing');
-      const [currentUser, setCurrentUser] = useState(null);
+      // --- SESSION PERSISTENCE ---
+      // Restore view and currentUser from localStorage so page refresh never drops the user
+      const [view, setViewRaw] = useState(() => {
+        try {
+          const s = JSON.parse(localStorage.getItem('sb_session') || 'null');
+          return (s && s.view) ? s.view : 'landing';
+        } catch { return 'landing'; }
+      });
+      const [currentUser, setCurrentUserRaw] = useState(() => {
+        try {
+          const s = JSON.parse(localStorage.getItem('sb_session') || 'null');
+          return (s && s.currentUser) ? s.currentUser : null;
+        } catch { return null; }
+      });
+
+      // Wrapper helpers that always keep localStorage in sync
+      const setView = (v) => { setViewRaw(v); try { const s = JSON.parse(localStorage.getItem('sb_session') || '{}'); localStorage.setItem('sb_session', JSON.stringify({ ...s, view: v })); } catch {} };
+      const setCurrentUser = (u) => { setCurrentUserRaw(u); try { const s = JSON.parse(localStorage.getItem('sb_session') || '{}'); localStorage.setItem('sb_session', JSON.stringify({ ...s, currentUser: u })); } catch {} };
+
       const [pin, setPin] = useState('');
       const [loginMode, setLoginMode] = useState('pin');
       const [showLoginPwd, setShowLoginPwd] = useState(false);
@@ -3842,7 +3859,10 @@ id,name,qty,barcode,date,cashierName
       const [superAdminSettings, setSuperAdminSettings] = useState(DEFAULT_SUPER_ADMIN_SETTINGS);
       const [isLocked, setIsLocked] = useState(false);
       const [isLoading, setIsLoading] = useState(true);
-      const [initialTab, setInitialTab] = useState('products');
+      // Restore last active tab from localStorage
+      const [initialTab, setInitialTab] = useState(() => {
+        try { return localStorage.getItem('sb_active_tab') || 'products'; } catch { return 'products'; }
+      });
 
       // Auto-pull from Turso on initial load or manual refresh
       useEffect(() => {
@@ -3928,7 +3948,11 @@ id,name,qty,barcode,date,cashierName
         };
       }, [superAdminSettings.autoLockMinutes, isLocked]);
 
-      const logout = () => { setCurrentUser(null); setPin(''); setView('landing'); setInitialTab('products'); };
+      const logout = () => {
+        // Fully clear the persisted session so refresh after logout goes to landing
+        try { localStorage.removeItem('sb_session'); localStorage.removeItem('sb_active_tab'); } catch {}
+        setCurrentUserRaw(null); setPin(''); setViewRaw('landing'); setInitialTab('products');
+      };
 
       const checkPin = (v, isSubmit = false) => {
         if (!isSubmit && loginMode === 'pin' && v.length > 4 && v.toLowerCase() !== 'soft') return;
