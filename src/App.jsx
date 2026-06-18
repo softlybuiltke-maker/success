@@ -13,8 +13,9 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
     import toast, { Toaster } from 'react-hot-toast';
     import { jsPDF } from 'jspdf';
     import autoTable from 'jspdf-autotable';
-    import { Html5Qrcode, Html5QrcodeSupportedFormats, Html5QrcodeScannerState } from 'html5-qrcode';
+    import { Html5Qrcode, Html5QrcodeScanner, Html5QrcodeSupportedFormats, Html5QrcodeScannerState } from 'html5-qrcode';
     import QRCode from 'qrcode';
+    import CryptoJS from 'crypto-js';
     
     window.LOGO_DATA = '/logo.png';
 
@@ -2410,6 +2411,26 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
       const [editingCashierId, setEditingCashierId] = useState(null);
       const [editingCashierData, setEditingCashierData] = useState({ name: '', pin: '', role: 'cashier', permissions: { ...DEFAULT_PERMISSIONS } });
       const [showFullImportModal, setShowFullImportModal] = useState(false);
+      const [selectedCashierQR, setSelectedCashierQR] = useState(null);
+
+      const generateCashierQR = (cashier) => {
+        const raw = localStorage.getItem('db_session');
+        if (!raw) return toast.error('No database connection active.');
+        const { url, token } = JSON.parse(raw);
+        
+        const payload = {
+          url,
+          token,
+          cashierId: cashier.id,
+          storeId: settings.name || 'store'
+        };
+
+        const encryptedPayload = CryptoJS.AES.encrypt(JSON.stringify(payload), String(cashier.pin)).toString();
+        setSelectedCashierQR({
+          name: cashier.name,
+          qrString: encryptedPayload
+        });
+      };
 
       const update = (k, v) => { setSettings({ ...settings, [k]: v }); };
       const addCashier = () => { const { name, pin, role, permissions } = cashierForm; if (!name || !pin || pin.length !== 4) return toast.error('Name and 4-digit PIN required.'); if (settings.ownerPin === pin || settings.cashiers?.some(c => c.pin === pin)) return toast.error('PIN is already in use.'); const newCashiers = [...(settings.cashiers || []), { id: crypto.randomUUID(), name, pin, role: role || 'cashier', permissions }]; setSettings({ ...settings, cashiers: newCashiers }); setCashierForm({ name: '', pin: '', role: 'cashier', permissions: { ...DEFAULT_PERMISSIONS } }); toast.success('Staff added.'); };
@@ -2480,6 +2501,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
                   <span className="font-medium text-sm text-slate-700">{cashier.name} <span className="ml-2 px-2 py-0.5 bg-slate-100 text-slate-600 text-xs rounded">{cashier.role === 'owner' ? 'Owner' : 'Cashier'}</span></span>
                   <div className="flex items-center gap-3">
                     <span className="text-sm font-mono text-slate-500">{cashier.pin}</span>
+                    <button onClick={() => generateCashierQR(cashier)} className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-full" title="Generate Login QR"><QrCode className="w-4 h-4" /></button>
                     <button onClick={() => handleEditCashier(cashier)} className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-full"><Edit2 className="w-4 h-4" /></button>
                     <button onClick={() => removeCashier(cashier.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-full"><Trash2 className="w-4 h-4" /></button>
                   </div>
@@ -3931,6 +3953,7 @@ id,name,qty,barcode,date,cashierName
       const [superAdminSettings, setSuperAdminSettings] = useState(DEFAULT_SUPER_ADMIN_SETTINGS);
       const [isLocked, setIsLocked] = useState(false);
       const [isLoading, setIsLoading] = useState(true);
+      const [scannedQrText, setScannedQrText] = useState('');
       // Restore last active tab from localStorage
       const [initialTab, setInitialTab] = useState(() => {
         try { return localStorage.getItem('sb_active_tab') || 'products'; } catch { return 'products'; }
@@ -4163,6 +4186,47 @@ id,name,qty,barcode,date,cashierName
         }
       };
 
+      const checkQrPin = async (v) => {
+        if (v.length <= 4) setPin(v);
+        if (v.length === 4) {
+          try {
+            const bytes = CryptoJS.AES.decrypt(scannedQrText, v);
+            const decryptedString = bytes.toString(CryptoJS.enc.Utf8);
+            if (!decryptedString) throw new Error('Invalid PIN');
+            const payload = JSON.parse(decryptedString);
+            
+            if (!payload.url || !payload.token || !payload.cashierId) {
+               throw new Error('Invalid payload');
+            }
+
+            // Save connection
+            localStorage.setItem('db_session', JSON.stringify({ url: payload.url, token: payload.token }));
+            
+            toast.loading("Connecting to store...", { id: 'qr-connect' });
+            const p = await tursoPullAll();
+            if (p) {
+               toast.success("Connected successfully!", { id: 'qr-connect' });
+               const s = await loadDataFromDB('settings') || DEFAULT_SETTINGS;
+               const cashier = (s.cashiers || []).find(c => c.id === payload.cashierId && String(c.pin) === v);
+               if (cashier) {
+                  setCurrentUser({ role: cashier.role || 'cashier', id: cashier.id, name: cashier.name, permissions: cashier.permissions || {} });
+                  setView('dash');
+                  setPin('');
+               } else {
+                  toast.error("Cashier profile not found in store.", { id: 'qr-connect' });
+                  setPin('');
+               }
+            } else {
+               toast.error("Failed to pull store data.", { id: 'qr-connect' });
+               setPin('');
+            }
+          } catch (err) {
+            toast.error('Incorrect PIN. Decryption failed.');
+            setPin('');
+          }
+        }
+      };
+
       if (isLoading) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><div className="w-12 h-12 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin"></div></div>;
 
       return (
@@ -4177,7 +4241,7 @@ id,name,qty,barcode,date,cashierName
               clearDataFromDB={clearDataFromDB}
             />
           )}
-          {view === 'landing' && (<div className="min-h-screen bg-white flex flex-col"><nav className="px-6 py-4 border-b flex justify-between items-center"><div className="flex items-center gap-2 font-bold text-xl text-slate-800"><img src={window.LOGO_DATA} alt="Softly Built" className="w-10 h-10 rounded-lg object-contain shadow-lg shadow-emerald-200" /> Softly Built</div><button onClick={() => setView('pin')} className="text-emerald-600 font-semibold hover:text-emerald-700">Login</button></nav><div className="flex-1 flex flex-col items-center justify-center text-center px-6 py-20 bg-gradient-to-b from-slate-50 to-white"><h1 className="text-5xl md:text-6xl font-extrabold text-slate-900 mb-6 tracking-tight">Manage your shop with <br className="hidden md:block" /><span className="text-emerald-600">precision and ease.</span></h1><p className="text-lg text-slate-500 max-w-2xl mb-10 leading-relaxed">Softly Built is the professional point-of-sale system designed for modern retailers. Track inventory, manage debts, and visualize profits, now with full offline support.</p><button onClick={() => setView('pin')} className="group flex items-center gap-2 bg-emerald-600 text-white px-8 py-4 rounded-xl text-lg font-bold shadow-xl shadow-emerald-200 hover:bg-emerald-700 hover:shadow-2xl hover:-translate-y-1 transition-all">Launch System <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" /></button></div><footer className="py-8 text-center text-slate-400 text-sm border-t"><p>&copy; {new Date().getFullYear()} Softly Built.</p></footer></div>)}
+          {view === 'landing' && (<div className="min-h-screen bg-white flex flex-col"><nav className="px-6 py-4 border-b flex justify-between items-center"><div className="flex items-center gap-2 font-bold text-xl text-slate-800"><img src={window.LOGO_DATA} alt="Softly Built" className="w-10 h-10 rounded-lg object-contain shadow-lg shadow-emerald-200" /> Softly Built</div><button onClick={() => setView('pin')} className="text-emerald-600 font-semibold hover:text-emerald-700">Login</button></nav><div className="flex-1 flex flex-col items-center justify-center text-center px-6 py-20 bg-gradient-to-b from-slate-50 to-white"><h1 className="text-5xl md:text-6xl font-extrabold text-slate-900 mb-6 tracking-tight">Manage your shop with <br className="hidden md:block" /><span className="text-emerald-600">precision and ease.</span></h1><p className="text-lg text-slate-500 max-w-2xl mb-10 leading-relaxed">Softly Built is the professional point-of-sale system designed for modern retailers. Track inventory, manage debts, and visualize profits, now with full offline support.</p><div className="flex flex-col md:flex-row gap-4"><button onClick={() => setView('pin')} className="group flex items-center justify-center gap-2 bg-emerald-600 text-white px-8 py-4 rounded-xl text-lg font-bold shadow-xl shadow-emerald-200 hover:bg-emerald-700 hover:shadow-2xl hover:-translate-y-1 transition-all">Launch System <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" /></button><button onClick={() => setView('qr_scan')} className="group flex items-center justify-center gap-2 bg-white text-emerald-600 border border-emerald-200 px-8 py-4 rounded-xl text-lg font-bold shadow-lg hover:bg-emerald-50 hover:shadow-xl hover:-translate-y-1 transition-all">Scan QR Login <QrCode className="w-5 h-5 group-hover:scale-110 transition-transform" /></button></div></div><footer className="py-8 text-center text-slate-400 text-sm border-t"><p>&copy; {new Date().getFullYear()} Softly Built.</p></footer></div>)}
           {view === 'pin' && (<div className="min-h-screen bg-slate-50 flex items-center justify-center p-4"><div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm text-center"><div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4"><Lock className="w-8 h-8 text-emerald-600" /></div><h2 className="text-xl font-bold mb-2 text-slate-800">Enter Access {loginMode === 'pin' ? 'PIN' : 'Password'}</h2><p className="text-sm text-slate-500 mb-6">Login as Owner or Cashier</p>
 {loginMode === 'pin' ? (
   <>
@@ -4193,6 +4257,32 @@ id,name,qty,barcode,date,cashierName
 <button onClick={() => { setPin(''); setLoginMode(loginMode === 'pin' ? 'password' : 'pin'); }} className="mt-6 text-emerald-600 hover:text-emerald-700 font-medium text-sm block mx-auto underline decoration-dotted">Switch to {loginMode === 'pin' ? 'Password' : 'PIN'}</button>
 <button onClick={logout} className="mt-6 text-sm text-slate-400 hover:text-red-500 font-medium block mx-auto">Back to Home</button>{loginMode === 'pin' && <button onClick={() => { setPin(''); setView('recover'); }} className="mt-4 text-xs text-slate-500 hover:text-slate-700 block mx-auto">Forgot PIN?</button>}</div></div>)}
           {view === 'recover' && (<div className="min-h-screen bg-slate-50 flex items-center justify-center p-4"><div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm text-center"><div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4"><Key className="w-8 h-8 text-amber-600" /></div><h2 className="text-xl font-bold mb-2 text-slate-800">Recover Access</h2><p className="text-sm text-slate-500 mb-6">Enter the master recovery PIN.</p><div className="flex justify-center gap-3 mb-8">{[0, 1, 2, 3, 4, 5].map(i => <div key={i} className={`w-3 h-3 rounded-full transition-all ${pin.length > i ? 'bg-amber-600 scale-125' : 'bg-slate-200'}`}></div>)}</div><div className="grid grid-cols-3 gap-4">{[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => <button key={n} onClick={() => checkRecoveryPin(pin + n)} className="p-4 bg-slate-50 rounded-xl font-bold text-xl text-slate-700 hover:bg-amber-50 hover:text-amber-700 hover:shadow-md transition-all border border-slate-100">{n}</button>)}<div /><button onClick={() => checkRecoveryPin(pin + '0')} className="p-4 bg-slate-50 rounded-xl font-bold text-xl text-slate-700 hover:bg-amber-50 hover:text-amber-700 hover:shadow-md transition-all border border-slate-100">0</button><button onClick={() => setPin(pin.slice(0, -1))} className="p-4 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"><Delete className="w-6 h-6" /></button></div><button onClick={() => { setPin(''); setView('pin'); }} className="mt-8 text-sm text-slate-400 hover:text-slate-700 font-medium">Back to Login</button></div></div>)}
+          
+          {view === 'qr_scan' && (
+            <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+              <QRScannerComponent 
+                onScanSuccess={(text) => {
+                  setScannedQrText(text);
+                  setPin('');
+                  setView('qr_pin');
+                }} 
+                onClose={() => setView('landing')} 
+              />
+            </div>
+          )}
+
+          {view === 'qr_pin' && (
+            <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+              <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm text-center">
+                <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4"><Lock className="w-8 h-8 text-emerald-600" /></div>
+                <h2 className="text-xl font-bold mb-2 text-slate-800">Decrypt Connection</h2>
+                <p className="text-sm text-slate-500 mb-6">Enter your 4-digit PIN to securely connect to the store.</p>
+                <div className="flex justify-center gap-3 mb-8">{[0, 1, 2, 3].map(i => <div key={i} className={`w-3 h-3 rounded-full transition-all ${pin.length > i ? 'bg-emerald-600 scale-125' : 'bg-slate-200'}`}></div>)}</div>
+                <div className="grid grid-cols-3 gap-4">{[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => <button key={n} onClick={() => checkQrPin(pin + n)} className="p-4 bg-slate-50 rounded-xl font-bold text-xl text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 hover:shadow-md transition-all border border-slate-100">{n}</button>)}<div /><button onClick={() => checkQrPin(pin + '0')} className="p-4 bg-slate-50 rounded-xl font-bold text-xl text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 hover:shadow-md transition-all border border-slate-100">0</button><button onClick={() => setPin(pin.slice(0, -1))} className="p-4 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"><Delete className="w-6 h-6" /></button></div>
+                <button onClick={() => { setPin(''); setView('landing'); }} className="mt-8 text-sm text-slate-400 hover:text-red-500 font-medium">Cancel</button>
+              </div>
+            </div>
+          )}
 
           {view === 'dash' && <Dashboard currentUser={currentUser} onLogout={logout} settings={settings} onSettingsChange={updateSettings} initialTab={initialTab} superAdminSettings={superAdminSettings} setSettingsRaw={setSettings} setSuperAdminSettingsRaw={setSuperAdminSettings} />}
         </>
