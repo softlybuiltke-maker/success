@@ -3933,9 +3933,45 @@ id,name,qty,barcode,date,cashierName
         try { return localStorage.getItem('sb_active_tab') || 'products'; } catch { return 'products'; }
       });
 
+      // Offline protection & auto-sync when back online
+      useEffect(() => {
+        const handleBeforeUnload = (e) => {
+          if (!navigator.onLine) {
+            e.preventDefault();
+            e.returnValue = 'You are offline. Refreshing now may cause data loss. Are you sure?';
+            return e.returnValue;
+          }
+        };
+
+        const handleOnline = async () => {
+          toast.success('Back online! Syncing offline changes...', { id: 'online-status', duration: 4000 });
+          // If we have a db_session, push all local data to Turso to sync any offline work
+          const raw = localStorage.getItem('db_session');
+          if (raw) {
+             await tursoSyncAll();
+             toast.success('Offline changes synced to cloud.', { id: 'online-status', duration: 4000 });
+          }
+        };
+
+        const handleOffline = () => {
+          toast.error('You are offline. Working locally.', { id: 'online-status', duration: 4000 });
+        };
+
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+
+        return () => {
+          window.removeEventListener('beforeunload', handleBeforeUnload);
+          window.removeEventListener('online', handleOnline);
+          window.removeEventListener('offline', handleOffline);
+        };
+      }, []);
+
       // Auto-pull from Turso on initial load or manual refresh
       useEffect(() => {
         const autoPull = async () => {
+          if (!navigator.onLine) return; // Don't try to pull if offline
           // If we just reloaded from a pull, clear the flag and don't pull again to avoid infinite loops
           if (sessionStorage.getItem('just_pulled')) {
             sessionStorage.removeItem('just_pulled');
