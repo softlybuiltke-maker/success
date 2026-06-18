@@ -28,7 +28,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
         const payloadStr = JSON.stringify(payloadObj);
         const ciphertext = CryptoJS.AES.encrypt(payloadStr, masterPassword).toString();
         const hexCiphertext = CryptoJS.enc.Hex.stringify(CryptoJS.enc.Utf8.parse(ciphertext));
-        const chunks = hexCiphertext.match(/.{1,200}/g) || [];
+        const chunks = hexCiphertext.match(/.{1,100}/g) || [];
         
         const countRes = await fetch(`${CLOUD_KV_API}/UpdateValue/${APP_NAMESPACE}/${encodeURIComponent(storeHandle)}_count/${chunks.length}`, {
           method: 'POST'
@@ -2587,12 +2587,13 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
       const [status, setStatus] = useState('');
 
       const handleSave = async () => {
-        if (!handle || !pwd) return toast.error('Handle and Password are required');
+        const cleanHandle = handle.trim().replace(/^@/, '');
+        if (!cleanHandle || !pwd) return toast.error('Handle and Password are required');
         const raw = localStorage.getItem('db_session');
         if (!raw) return toast.error('No active Turso connection to back up');
         setStatus('Saving to Cloud Registry...');
         const creds = JSON.parse(raw);
-        const ok = await uploadToCloudRegistry(handle, pwd, creds);
+        const ok = await uploadToCloudRegistry(cleanHandle, pwd, creds);
         if (ok) {
           toast.success('Recovery key saved securely!');
           setStatus('Saved! You can now recover this store on any device using this Handle and Password.');
@@ -4523,15 +4524,17 @@ id,name,qty,barcode,date,cashierName
                 <p className="text-sm text-slate-500 mb-6">Enter your Store Handle and Master Password to reconnect.</p>
                 <form onSubmit={async (e) => { 
                   e.preventDefault(); 
-                  const handle = e.target.handle.value; 
+                  const handle = e.target.handle.value.trim().replace(/^@/, ''); 
                   const pwd = e.target.pwd.value; 
                   if (!handle || !pwd) return toast.error('Both fields required');
                   const toastId = toast.loading('Recovering store...');
                   try {
                     const creds = await downloadFromCloudRegistry(handle, pwd);
                     localStorage.setItem('db_session', JSON.stringify(creds));
+                    const session = JSON.parse(localStorage.getItem('sb_session') || '{}');
+                    localStorage.setItem('sb_session', JSON.stringify({ ...session, view: 'pin' }));
                     toast.success('Recovery successful! Connecting...', { id: toastId });
-                    setTimeout(() => window.location.reload(), 1000);
+                    setTimeout(() => window.location.reload(), 1500);
                   } catch (err) {
                     toast.error(err.message || 'Recovery failed', { id: toastId });
                   }
