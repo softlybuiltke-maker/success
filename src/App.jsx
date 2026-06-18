@@ -255,12 +255,19 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
           // Render at high scale natively, then restrict display size via CSS for crispness.
           QRCode.toCanvas(canvasRef.current, url, { scale: 6, margin: 2, errorCorrectionLevel: 'L' }, (err) => {
             if (err) console.error('QR generation error', err);
+            // Force the canvas to obey the container size, as toCanvas overwrites inline styles
+            if (canvasRef.current) {
+              canvasRef.current.style.width = '100%';
+              canvasRef.current.style.height = '100%';
+            }
           });
         }
       }, [url, size]);
       return (
         <div style={{ textAlign: 'center', marginTop: '10px', marginBottom: '10px' }}>
-          <canvas ref={canvasRef} style={{ margin: '0 auto', display: 'block', width: size, height: size }} />
+          <div style={{ width: size, height: size, margin: '0 auto' }}>
+            <canvas ref={canvasRef} style={{ display: 'block' }} />
+          </div>
           <div style={{ fontSize: '8pt', marginTop: '4px' }}>Scan for more info</div>
         </div>
       );
@@ -281,7 +288,6 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
         const config = {
           fps: 15,
           qrbox: { width: 280, height: 280 },
-          rememberLastUsedCamera: true,
           aspectRatio: 1.0,
         };
 
@@ -299,26 +305,30 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
           }
         };
 
-        // Use environment (rear) camera directly and request high resolution to read dense QR codes easily
-        html5QrCode.start(
-          { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } },
-          config,
-          (decodedText) => {
-            safeStop();
-            onScanSuccess(decodedText);
-          },
-          () => {} // ignore per-frame decode errors
-        ).catch(err => {
-          console.warn('Rear camera failed, trying any camera...', err);
-          // Fallback: try any available camera
-          Html5Qrcode.getCameras().then(cameras => {
-            if (!cameras || cameras.length === 0) {
-              toast.error('No camera found. Please use a device with a camera.');
-              onClose();
-              return;
-            }
+        // Always request cameras first. This guarantees the browser permission prompt triggers correctly.
+        Html5Qrcode.getCameras().then(cameras => {
+          if (!cameras || cameras.length === 0) {
+            toast.error('No camera found on this device.');
+            onClose();
+            return;
+          }
+
+          // Prefer the last camera (usually rear on mobile)
+          const cameraId = cameras[cameras.length - 1].id;
+
+          html5QrCode.start(
+            cameraId,
+            config,
+            (decodedText) => {
+              safeStop();
+              onScanSuccess(decodedText);
+            },
+            () => {} // ignore per-frame decode errors
+          ).catch(err => {
+            console.warn('Primary camera failed, trying fallback...', err);
+            // Fallback to the first available camera
             html5QrCode.start(
-              { deviceId: { exact: cameras[0].id }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+              cameras[0].id,
               config,
               (decodedText) => {
                 safeStop();
@@ -326,13 +336,14 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
               },
               () => {}
             ).catch(() => {
-              toast.error('Could not access camera. Check browser permissions.');
+              toast.error('Could not start camera. Please refresh and try again.');
               onClose();
             });
-          }).catch(() => {
-            toast.error('Camera permission denied. Please allow access and try again.');
-            onClose();
           });
+        }).catch(err => {
+          console.error('Camera permission error:', err);
+          toast.error('Camera permission denied. Please allow access in your browser settings.');
+          onClose();
         });
 
         return () => {
