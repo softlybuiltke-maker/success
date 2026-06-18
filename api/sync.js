@@ -82,6 +82,10 @@ export default async function handler(req, res) {
     // Execute all deletes and inserts in one transaction
     await client.batch(stmts, 'write');
 
+    // ✅ Update last_modified timestamp so polling devices detect the change instantly
+    await client.execute(`CREATE TABLE IF NOT EXISTS meta (id INTEGER PRIMARY KEY, last_modified INTEGER NOT NULL DEFAULT 0)`);
+    await client.execute(`INSERT OR REPLACE INTO meta (id, last_modified) VALUES (1, ${Date.now()})`);
+
     return res.status(200).json({ ok: true });
   } catch (err) {
     return res.status(200).json({ ok: false, error: err?.message || 'Sync failed.' });

@@ -140,11 +140,15 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
         if (!raw) return; // Not connected — skip silently
         const { url, token } = JSON.parse(raw);
         if (!url || !token) return;
-        await fetch('/api/sync', {
+        const r = await fetch('/api/sync', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ url, token, key, value: JSON.stringify(data) }),
         });
+        if (r.ok) {
+          // Stamp local write time so the polling loop doesn't re-download our own change
+          sessionStorage.setItem('sb_last_local_write', String(Date.now()));
+        }
       } catch (_) {
         // Swallow all errors — Turso sync must never crash the POS
       }
@@ -3476,6 +3480,71 @@ id,name,qty,barcode,date,cashierName
       const updateProducts = (newData) => { setProducts(newData); saveDataToDB('products', newData); tursoSync('products', newData); }; const updateCustomers = (newData) => { setCustomers(newData); saveDataToDB('customers', newData); tursoSync('customers', newData); }; const updateDebts = (newData) => { setDebts(newData); saveDataToDB('debts', newData); tursoSync('debts', newData); }; const updatePaidDebts = (newData) => { setPaidDebts(newData); saveDataToDB('paidDebts', newData); tursoSync('paidDebts', newData); }; const updateExpenses = (newData) => { setExpenses(newData); saveDataToDB('expenses', newData); tursoSync('expenses', newData); }; const updateSalesHistory = (newData) => { setSalesHistory(newData); saveDataToDB('salesHistory', newData); tursoSync('salesHistory', newData); const snaps = computeMonthlyAggregates(newData); if (snaps.length > 0) { saveMonthlySnapshots(snaps).then(() => setMonthlySnapshots(snaps)); } }; const updateStockHistory = (newData) => { setStockHistory(newData); saveDataToDB('stockHistory', newData); tursoSync('stockHistory', newData); };
 
       useEffect(() => { const loadAllData = async () => { const loadedProducts = await loadDataFromDB('products') || []; const loadedCustomers = await loadDataFromDB('customers') || []; const loadedDebts = await loadDataFromDB('debts') || []; const loadedPaidDebts = await loadDataFromDB('paidDebts') || []; const loadedExpenses = await loadDataFromDB('expenses') || []; const loadedSales = await loadDataFromDB('salesHistory') || []; const loadedStock = await loadDataFromDB('stockHistory') || []; const loadedSnaps = await loadMonthlySnapshots() || []; setProducts(loadedProducts); setCustomers(loadedCustomers); setDebts(loadedDebts); setPaidDebts(loadedPaidDebts); setExpenses(loadedExpenses); setSalesHistory(loadedSales); setStockHistory(loadedStock); setMonthlySnapshots(loadedSnaps); }; loadAllData(); }, []);
+
+      // ── Real-time sync: poll Turso every 5s for changes made on other devices ──
+      const lastSyncTsRef = useRef(0);
+      useEffect(() => {
+        const raw = localStorage.getItem('db_session');
+        if (!raw) return; // No DB connected — don't poll
+        let url, token;
+        try { ({ url, token } = JSON.parse(raw)); } catch { return; }
+        if (!url || !token) return;
+        const httpUrl = url.trim().replace(/^libsql:\/\//, 'https://');
+
+        const applyLiveData = async (data) => {
+          // Update React state AND local IndexedDB with the new data from Turso
+          if (Array.isArray(data.products))     { setProducts(data.products);         await saveDataToDB('products', data.products); }
+          if (Array.isArray(data.salesHistory)) { setSalesHistory(data.salesHistory);  await saveDataToDB('salesHistory', data.salesHistory); const snaps = computeMonthlyAggregates(data.salesHistory); if (snaps.length > 0) { saveMonthlySnapshots(snaps).then(() => setMonthlySnapshots(snaps)); } }
+          if (Array.isArray(data.customers))    { setCustomers(data.customers);         await saveDataToDB('customers', data.customers); }
+          if (Array.isArray(data.debts))        { setDebts(data.debts);                 await saveDataToDB('debts', data.debts); }
+          if (Array.isArray(data.paidDebts))    { setPaidDebts(data.paidDebts);         await saveDataToDB('paidDebts', data.paidDebts); }
+          if (Array.isArray(data.expenses))     { setExpenses(data.expenses);           await saveDataToDB('expenses', data.expenses); }
+          if (Array.isArray(data.stockHistory)) { setStockHistory(data.stockHistory);   await saveDataToDB('stockHistory', data.stockHistory); }
+        };
+
+        const interval = setInterval(async () => {
+          try {
+            // Step 1: cheap poll — just get the timestamp
+            const pollRes = await fetch('/api/poll', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ url: httpUrl, token }),
+            });
+            if (!pollRes.ok) return;
+            const { last_modified } = await pollRes.json();
+            if (!last_modified) return;
+
+            // Step 2: skip if we have never synced yet (first poll, set baseline)
+            if (lastSyncTsRef.current === 0) {
+              lastSyncTsRef.current = last_modified;
+              return;
+            }
+
+            // Step 3: if remote is newer than what we last saw, check if WE caused the change
+            if (last_modified > lastSyncTsRef.current) {
+              // Grace period: if this device wrote within the last 3 seconds, skip (it's our own write)
+              const lastLocalWrite = Number(sessionStorage.getItem('sb_last_local_write') || 0);
+              const msSinceLocalWrite = Date.now() - lastLocalWrite;
+              lastSyncTsRef.current = last_modified;
+              if (msSinceLocalWrite < 3000) return; // Our own write — skip
+
+              // Pull fresh data and apply directly to React state
+              const pullRes = await fetch('/api/pull', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url: httpUrl, token }),
+              });
+              const result = await pullRes.json();
+              if (result.ok && result.data) {
+                await applyLiveData(result.data);
+                toast.success('🔄 Synced from another device', { duration: 2000, id: 'live-sync' });
+              }
+            }
+          } catch (_) { /* Silent — never crash the POS */ }
+        }, 5000);
+
+        return () => clearInterval(interval);
+      }, []);
       useEffect(() => {
         if (products.length > 0 && !sessionStorage.getItem('expiryReminderShown')) {
           const today = new Date();
