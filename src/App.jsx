@@ -285,13 +285,26 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
           aspectRatio: 1.0,
         };
 
+        const safeStop = () => {
+          try {
+            if (scannerRef.current) {
+              scannerRef.current.stop().then(() => {
+                try { scannerRef.current.clear(); } catch(_) {}
+              }).catch(() => {
+                try { scannerRef.current.clear(); } catch(_) {}
+              });
+            }
+          } catch(e) {
+            try { scannerRef.current?.clear(); } catch(_) {}
+          }
+        };
+
         // Use environment (rear) camera directly and request high resolution to read dense QR codes easily
         html5QrCode.start(
           { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } },
           config,
           (decodedText) => {
-            // Stop scanner after successful scan
-            html5QrCode.stop().catch(() => {});
+            safeStop();
             onScanSuccess(decodedText);
           },
           () => {} // ignore per-frame decode errors
@@ -308,7 +321,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
               { deviceId: { exact: cameras[0].id }, width: { ideal: 1920 }, height: { ideal: 1080 } },
               config,
               (decodedText) => {
-                html5QrCode.stop().catch(() => {});
+                safeStop();
                 onScanSuccess(decodedText);
               },
               () => {}
@@ -323,10 +336,17 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
         });
 
         return () => {
-          if (scannerRef.current) {
-            scannerRef.current.stop().catch(() => {}).finally(() => {
-              try { scannerRef.current.clear(); } catch(_) {}
-            });
+          try {
+            if (scannerRef.current) {
+              // Try to safely stop and clear on unmount
+              scannerRef.current.stop().then(() => {
+                try { scannerRef.current.clear(); } catch(_) {}
+              }).catch(() => {
+                try { scannerRef.current.clear(); } catch(_) {}
+              });
+            }
+          } catch(e) {
+            try { scannerRef.current?.clear(); } catch(_) {}
           }
         };
       }, []);
