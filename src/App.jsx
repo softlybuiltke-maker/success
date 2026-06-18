@@ -27,11 +27,20 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
       try {
         const payloadStr = JSON.stringify(payloadObj);
         const ciphertext = CryptoJS.AES.encrypt(payloadStr, masterPassword).toString();
-        const encodedCiphertext = encodeURIComponent(ciphertext);
-        const res = await fetch(`${CLOUD_KV_API}/UpdateValue/${APP_NAMESPACE}/${encodeURIComponent(storeHandle)}/${encodedCiphertext}`, {
+        const chunks = ciphertext.match(/.{1,200}/g) || [];
+        
+        const countRes = await fetch(`${CLOUD_KV_API}/UpdateValue/${APP_NAMESPACE}/${encodeURIComponent(storeHandle)}_count/${chunks.length}`, {
           method: 'POST'
         });
-        if (!res.ok) throw new Error('Failed to upload to cloud registry');
+        if (!countRes.ok) throw new Error('Failed to upload count');
+
+        for (let i = 0; i < chunks.length; i++) {
+          const encoded = encodeURIComponent(chunks[i]);
+          const res = await fetch(`${CLOUD_KV_API}/UpdateValue/${APP_NAMESPACE}/${encodeURIComponent(storeHandle)}_${i}/${encoded}`, {
+            method: 'POST'
+          });
+          if (!res.ok) throw new Error(`Failed to upload chunk ${i}`);
+        }
         return true;
       } catch (err) {
         console.error(err);
@@ -41,13 +50,23 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 
     const downloadFromCloudRegistry = async (storeHandle, masterPassword) => {
       try {
-        const res = await fetch(`${CLOUD_KV_API}/GetValue/${APP_NAMESPACE}/${encodeURIComponent(storeHandle)}`);
-        if (!res.ok) throw new Error('Failed to fetch from cloud registry');
-        const encodedCiphertext = await res.text();
-        if (encodedCiphertext === 'null' || !encodedCiphertext) throw new Error('Store handle not found');
-        const cleanCiphertext = encodedCiphertext.replace(/^"|"$/g, '');
-        const decodedCiphertext = decodeURIComponent(cleanCiphertext);
-        const bytes = CryptoJS.AES.decrypt(decodedCiphertext, masterPassword);
+        const countRes = await fetch(`${CLOUD_KV_API}/GetValue/${APP_NAMESPACE}/${encodeURIComponent(storeHandle)}_count`);
+        if (!countRes.ok) throw new Error('Failed to fetch count');
+        const countText = await countRes.text();
+        if (countText === 'null' || !countText) throw new Error('Store handle not found');
+        
+        const count = parseInt(countText.replace(/^"|"$/g, ''));
+        if (isNaN(count) || count <= 0) throw new Error('Invalid chunk count');
+
+        let ciphertext = '';
+        for (let i = 0; i < count; i++) {
+          const res = await fetch(`${CLOUD_KV_API}/GetValue/${APP_NAMESPACE}/${encodeURIComponent(storeHandle)}_${i}`);
+          if (!res.ok) throw new Error(`Failed to fetch chunk ${i}`);
+          const chunk = await res.text();
+          ciphertext += decodeURIComponent(chunk.replace(/^"|"$/g, ''));
+        }
+
+        const bytes = CryptoJS.AES.decrypt(ciphertext, masterPassword);
         const decryptedStr = bytes.toString(CryptoJS.enc.Utf8);
         if (!decryptedStr) throw new Error('Invalid master password or corrupted data');
         return JSON.parse(decryptedStr);
