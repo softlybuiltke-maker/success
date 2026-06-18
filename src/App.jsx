@@ -55,7 +55,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
         const countText = await countRes.text();
         if (countText === 'null' || !countText) throw new Error('Store handle not found');
         
-        const count = parseInt(countText.replace(/^"|"$/g, ''));
+        const count = parseInt(countText.replace(/["\s]/g, ''));
         if (isNaN(count) || count <= 0) throw new Error('Invalid chunk count');
 
         let hexCiphertext = '';
@@ -63,7 +63,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
           const res = await fetch(`${CLOUD_KV_API}/GetValue/${APP_NAMESPACE}/${encodeURIComponent(storeHandle)}_${i}`);
           if (!res.ok) throw new Error(`Failed to fetch chunk ${i}`);
           const chunk = await res.text();
-          hexCiphertext += chunk.replace(/^"|"$/g, '');
+          hexCiphertext += chunk.replace(/["\s]/g, '');
         }
 
         const ciphertext = CryptoJS.enc.Utf8.stringify(CryptoJS.enc.Hex.parse(hexCiphertext));
