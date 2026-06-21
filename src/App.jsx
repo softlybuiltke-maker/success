@@ -299,7 +299,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
       notifyLowStock: 5
     };
 
-    const DEFAULT_SUPER_ADMIN_SETTINGS = { scannerSize: 250, autoLockMinutes: 0, lockPin: '', periodInDays: 0, enablePeriodLock: false, periodStartDate: null };
+    const DEFAULT_SUPER_ADMIN_SETTINGS = { scannerSize: 250, lockPin: '', periodInDays: 0, enablePeriodLock: false, periodStartDate: null };
 
     // --- HELPER COMPONENTS & UTILS ---
 
@@ -694,11 +694,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
                     <input type="text" maxLength={8} className="input-field border-amber-200 focus:border-amber-500 focus:ring-amber-200" value={settings.recoveryPin || ''} onChange={e => updateSettings({ ...settings, recoveryPin: e.target.value.replace(/\D/g, '') })} placeholder="Custom PIN" />
                     <p className="text-xs text-amber-700 mt-2">Used for master recovery. Leave blank to use Master Recovery PIN.</p>
                   </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-amber-900 mb-1">Auto-Lock Timer (Minutes)</label>
-                    <input type="number" className="input-field border-amber-200 focus:border-amber-500 focus:ring-amber-200" value={settings.autoLockMinutes} onChange={e => updateSettings({ ...settings, autoLockMinutes: parseInt(e.target.value) || 0 })} />
-                    <p className="text-xs text-amber-700 mt-2">Set to 0 to disable auto-lock.</p>
-                  </div>
+
                   <div>
                     <label className="block text-sm font-semibold text-amber-900 mb-1">Period (Days)</label>
                     <input type="number" className="input-field border-amber-200 focus:border-amber-500 focus:ring-amber-200" value={settings.periodInDays || ''} onChange={e => updateSettings({ ...settings, periodInDays: parseInt(e.target.value) || 0 })} placeholder="e.g. 30" />
@@ -4497,29 +4493,7 @@ id,name,qty,barcode,date,cashierName
         tursoSync('superAdminSettings', newSas);
       };
 
-      // Auto-lock mechanism
-      const lastActivityRef = useRef(Date.now());
-      useEffect(() => {
-        if (!superAdminSettings.autoLockMinutes || superAdminSettings.autoLockMinutes <= 0 || isLocked) return;
 
-        const updateActivity = () => { lastActivityRef.current = Date.now(); };
-        window.addEventListener('mousemove', updateActivity);
-        window.addEventListener('keydown', updateActivity);
-        window.addEventListener('touchstart', updateActivity);
-
-        const interval = setInterval(() => {
-          if (Date.now() - lastActivityRef.current > superAdminSettings.autoLockMinutes * 60000) {
-            setIsLocked(true);
-          }
-        }, 10000);
-
-        return () => {
-          window.removeEventListener('mousemove', updateActivity);
-          window.removeEventListener('keydown', updateActivity);
-          window.removeEventListener('touchstart', updateActivity);
-          clearInterval(interval);
-        };
-      }, [superAdminSettings.autoLockMinutes, isLocked]);
 
       // Period Lock Mechanism
       const [isPeriodExpired, setIsPeriodExpired] = useState(false);
