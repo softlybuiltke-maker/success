@@ -1474,6 +1474,17 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 
         if (transcript.startsWith('add ')) {
           let commandBody = transcript.substring(4).trim();
+          
+          let target = 'cart';
+          // Account for "to" -> "2" normalization in speech recognition
+          if (/(?:2|to)\s+(?:the\s+)?stock$/.test(commandBody)) {
+            target = 'stock';
+            commandBody = commandBody.replace(/\s+(?:2|to)\s+(?:the\s+)?stock$/, '').trim();
+          } else if (/(?:2|to)\s+(?:the\s+)?cart$/.test(commandBody)) {
+            target = 'cart';
+            commandBody = commandBody.replace(/\s+(?:2|to)\s+(?:the\s+)?cart$/, '').trim();
+          }
+
           const qtyMatch = commandBody.match(/^(\d+)\s+(.+)$/);
           let quantity = 1;
           let productNameQuery = commandBody;
@@ -1485,6 +1496,13 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
           let matchedProduct = findBestProductMatch(productNameQuery);
 
           if (matchedProduct) {
+            if (target === 'stock') {
+              addStock(matchedProduct, quantity);
+              speak(`Restocked ${quantity} ${matchedProduct.name}`);
+              setVoiceFeedback(`Restocked ${quantity} x ${matchedProduct.name}`);
+              return;
+            }
+
             if (matchedProduct.stock <= 0) {
               toast.error(`${matchedProduct.name} is out of stock.`);
               speak(`${matchedProduct.name} is out of stock`);
