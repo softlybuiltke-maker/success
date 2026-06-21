@@ -1544,7 +1544,21 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
             {prodTab === 'manage' ? (<>
             <div className="flex items-center gap-3">
               <div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" /><input className="input-field w-full pl-9 py-2 text-sm rounded-full" placeholder="Search products..." value={search} onChange={e => setSearch(e.target.value)} /></div>
-              <select className="input-field flex-1" value={cat} onChange={e => setCat(e.target.value)}><option value="">All Categories</option>{cats.map(c => <option key={c} value={c}>{c}</option>)}</select>
+              <div className="flex-1 flex gap-2 items-center">
+                <select className="input-field flex-1" value={cat} onChange={e => setCat(e.target.value)}><option value="">All Categories</option>{cats.map(c => <option key={c} value={c}>{c}</option>)}</select>
+                {cat && (role === 'owner' || perms.editProducts) && (
+                  <button onClick={() => {
+                    const newCat = prompt('Rename Category:', cat);
+                    if (newCat && newCat.trim() && newCat !== cat) {
+                      setProducts(products.map(p => p.category === cat ? { ...p, category: newCat.trim() } : p));
+                      setCat(newCat.trim());
+                      toast.success('Category renamed');
+                    }
+                  }} className="p-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-600" title="Rename Category">
+                    <Edit2 className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
               {role === 'owner' && selectedIds.size > 0 && <button onClick={() => handleCreateOrder(products.filter(p => selectedIds.has(p.id)))} className="btn-primary bg-blue-600 hover:bg-blue-700 py-2 px-4 whitespace-nowrap"><Truck className="w-4 h-4" /> Order ({selectedIds.size})</button>}
               {role === 'owner' && selectedIds.size > 0 && <button onClick={() => { setShowShoppingListModal(true); setShoppingListItems(products.filter(p => selectedIds.has(p.id)).map(p => ({ ...p, qty: 1 }))); }} className="btn-primary bg-emerald-600 hover:bg-emerald-700 py-2 px-4 whitespace-nowrap"><ClipboardList className="w-4 h-4" /> Create shopping list</button>}
             </div>
