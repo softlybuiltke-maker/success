@@ -1357,6 +1357,228 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 
     const ProductPanel = ({ settings, superAdminSettings, products, setProducts, currentUser, processSale, printData, suppliers, customers, updateCustomers, stockHistory, setStockHistory, cart, setCart }) => {
       const [search, setSearch] = useState(''); const [cat, setCat] = useState(''); const [scannerMode, setScannerMode] = useState(null); const [showImport, setShowImport] = useState(false); const [updateId, setUpdateId] = useState(null); const [form, setForm] = useState({ name: '', price: '', cost: '', stock: '', cat: '', code: '', isCommodity: false, unit: 'Kg', expiryDate: '' }); const [showBulkPriceUpdate, setShowBulkPriceUpdate] = useState(false); const [activeTab, setActiveTab] = useState('all'); const [editId, setEditId] = useState(null); const [editData, setEditData] = useState({}); const [isCheckingOut, setIsCheckingOut] = useState(false); const [showOrderModal, setShowOrderModal] = useState(false); const [showShoppingListModal, setShowShoppingListModal] = useState(false); const [shoppingListItems, setShoppingListItems] = useState([]); const [printShoppingListNow, setPrintShoppingListNow] = useState(false); const [selectedOrderItems, setSelectedOrderItems] = useState([]); const [initialSupplierId, setInitialSupplierId] = useState(null); const [showAttractMode, setShowAttractMode] = useState(false); const [showAddProduct, setShowAddProduct] = useState(false); const role = currentUser?.role; const perms = currentUser?.permissions || {};
+
+      // Voice Assistant States and Logic
+      const [isListening, setIsListening] = useState(false);
+      const [voiceFeedback, setVoiceFeedback] = useState('');
+      const [voiceError, setVoiceError] = useState('');
+      const recognitionRef = useRef(null);
+
+      const speak = useCallback((text) => {
+        if (!window.speechSynthesis) return;
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        const voices = window.speechSynthesis.getVoices();
+        const engVoice = voices.find(v => v.lang.startsWith('en')) || voices[0];
+        if (engVoice) utterance.voice = engVoice;
+        utterance.rate = 1.0;
+        window.speechSynthesis.speak(utterance);
+      }, []);
+
+      const updateCartItem = (cartId, updatedValues) => { setCart(currentCart => currentCart.map(item => item.cartId === cartId ? { ...item, ...updatedValues } : item)); };
+      const removeCartItem = (cartId) => { setCart(currentCart => currentCart.filter(item => item.cartId !== cartId)); };
+      const clearCart = () => { if (cart.length > 0) setCart([]); };
+
+      const handleVoiceCommand = useCallback((rawTranscript) => {
+        const transcript = rawTranscript.toLowerCase().trim();
+        setVoiceFeedback(`Heard: "${rawTranscript}"`);
+
+        if (transcript === 'clear cart' || transcript === 'clear') {
+          clearCart();
+          speak('Cart cleared');
+          setVoiceFeedback('Cart cleared');
+          return;
+        }
+
+        if (transcript.startsWith('checkout') || transcript === 'check out') {
+          let method = 'Cash';
+          if (transcript.includes('card')) method = 'Card';
+          else if (transcript.includes('mpesa')) method = 'Mpesa';
+          else if (transcript.includes('mobile')) method = 'Mpesa';
+          
+          setIsCheckingOut(true);
+          speak(`Checking out with ${method}`);
+          setVoiceFeedback(`Checkout opened (${method})`);
+          return;
+        }
+
+        if (transcript.startsWith('search ')) {
+          const query = transcript.substring(7).trim();
+          setSearch(query);
+          speak(`Searching for ${query}`);
+          setVoiceFeedback(`Searching: ${query}`);
+          return;
+        }
+
+        if (transcript.startsWith('add ')) {
+          let commandBody = transcript.substring(4).trim();
+          const qtyMatch = commandBody.match(/^(\d+)\s+(.+)$/);
+          let quantity = 1;
+          let productNameQuery = commandBody;
+          if (qtyMatch) {
+            quantity = parseInt(qtyMatch[1], 10);
+            productNameQuery = qtyMatch[2].trim();
+          }
+
+          let matchedProduct = products.find(p => p.name.toLowerCase() === productNameQuery);
+          if (!matchedProduct) {
+            matchedProduct = products.find(p => p.name.toLowerCase().includes(productNameQuery));
+          }
+          if (!matchedProduct) {
+            matchedProduct = products.find(p => p.barcode && p.barcode.toLowerCase() === productNameQuery);
+          }
+
+          if (matchedProduct) {
+            if (matchedProduct.stock <= 0) {
+              toast.error(`${matchedProduct.name} is out of stock.`);
+              speak(`${matchedProduct.name} is out of stock`);
+              setVoiceFeedback(`${matchedProduct.name} is out of stock`);
+              return;
+            }
+
+            setCart(currentCart => {
+              const totalInCart = currentCart.reduce((sum, item) => item.productId === matchedProduct.id ? sum + item.quantity : sum, 0);
+
+              if (totalInCart + quantity > matchedProduct.stock) {
+                const available = matchedProduct.stock - totalInCart;
+                if (available <= 0) {
+                  toast.error(`Not enough stock for ${matchedProduct.name}. Already in cart.`);
+                  speak(`No more stock for ${matchedProduct.name}`);
+                  return currentCart;
+                }
+                toast.error(`Only ${matchedProduct.stock} left for ${matchedProduct.name}. Adding ${available}.`);
+                speak(`Adding ${available} ${matchedProduct.name}`);
+                
+                const lastItemIndex = currentCart.length - 1;
+                const lastItem = currentCart[lastItemIndex];
+                if (lastItem && lastItem.productId === matchedProduct.id) {
+                  const newCart = [...currentCart];
+                  newCart[lastItemIndex] = { ...lastItem, quantity: lastItem.quantity + available };
+                  return newCart;
+                } else {
+                  return [...currentCart, {
+                    cartId: crypto.randomUUID(),
+                    productId: matchedProduct.id,
+                    name: matchedProduct.name,
+                    price: matchedProduct.price,
+                    cost: matchedProduct.cost,
+                    isCommodity: matchedProduct.isCommodity,
+                    unit: matchedProduct.unit,
+                    quantity: available,
+                    discountType: 'amount',
+                    discountValue: 0
+                  }];
+                }
+              }
+
+              const lastItemIndex = currentCart.length - 1;
+              const lastItem = currentCart[lastItemIndex];
+
+              if (lastItem && lastItem.productId === matchedProduct.id) {
+                const newCart = [...currentCart];
+                newCart[lastItemIndex] = { ...lastItem, quantity: lastItem.quantity + quantity };
+                toast.success(`${matchedProduct.name} quantity updated in cart`);
+                speak(`Added ${quantity} ${matchedProduct.name}`);
+                return newCart;
+              } else {
+                toast.success(`${matchedProduct.name} added to cart`);
+                speak(`Added ${quantity} ${matchedProduct.name}`);
+                return [...currentCart, {
+                  cartId: crypto.randomUUID(),
+                  productId: matchedProduct.id,
+                  name: matchedProduct.name,
+                  price: matchedProduct.price,
+                  cost: matchedProduct.cost,
+                  isCommodity: matchedProduct.isCommodity,
+                  unit: matchedProduct.unit,
+                  quantity: quantity,
+                  discountType: 'amount',
+                  discountValue: 0
+                }];
+              }
+            });
+            setVoiceFeedback(`Added ${quantity} x ${matchedProduct.name}`);
+          } else {
+            toast.error(`Could not find product "${productNameQuery}"`);
+            speak(`Product not found`);
+            setVoiceFeedback(`Not found: "${productNameQuery}"`);
+          }
+          return;
+        }
+
+        if (transcript.startsWith('remove ')) {
+          const productNameQuery = transcript.substring(7).trim();
+          const cartItem = cart.find(item => item.name.toLowerCase().includes(productNameQuery));
+          if (cartItem) {
+            removeCartItem(cartItem.cartId);
+            speak(`Removed ${cartItem.name}`);
+            setVoiceFeedback(`Removed: ${cartItem.name}`);
+          } else {
+            toast.error(`No item named "${productNameQuery}" in cart`);
+            speak(`Not in cart`);
+            setVoiceFeedback(`Not in cart: "${productNameQuery}"`);
+          }
+          return;
+        }
+
+        setVoiceFeedback(`Unknown command: "${transcript}"`);
+        speak("Command not recognized");
+      }, [products, cart, speak]);
+
+      const toggleVoiceAssistant = () => {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+          toast.error("Web Speech API is not supported in this browser.");
+          return;
+        }
+
+        if (isListening) {
+          if (recognitionRef.current) {
+            recognitionRef.current.stop();
+          }
+          setIsListening(false);
+          setVoiceFeedback('');
+          return;
+        }
+
+        const recognition = new SpeechRecognition();
+        recognitionRef.current = recognition;
+        recognition.continuous = false;
+        recognition.interimResults = false;
+        recognition.lang = 'en-US';
+
+        recognition.onstart = () => {
+          setIsListening(true);
+          setVoiceError('');
+          setVoiceFeedback('Listening...');
+        };
+
+        recognition.onerror = (event) => {
+          console.error(event);
+          setVoiceError(`Error: ${event.error}`);
+          setIsListening(false);
+          speak("Voice error");
+        };
+
+        recognition.onend = () => {
+          setIsListening(false);
+        };
+
+        recognition.onresult = (event) => {
+          const resultText = event.results[0][0].transcript;
+          handleVoiceCommand(resultText);
+        };
+
+        recognition.start();
+      };
+
+      useEffect(() => {
+        return () => {
+          if (recognitionRef.current) {
+            recognitionRef.current.stop();
+          }
+        };
+      }, []);
       const canViewCosts = settings.showCosts && (role === 'owner' || !!perms?.viewCostPrice);
       const [viewStock, setViewStock] = useState(false); const [stockSearch, setStockSearch] = useState(''); const [stockDateRange, setStockDateRange] = useState({ start: '', end: '' });
       const [currentPage, setCurrentPage] = useState(1);
@@ -1436,9 +1658,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
         });
       };
 
-      const updateCartItem = (cartId, updatedValues) => { setCart(currentCart => currentCart.map(item => item.cartId === cartId ? { ...item, ...updatedValues } : item)); };
-      const removeCartItem = (cartId) => { setCart(currentCart => currentCart.filter(item => item.cartId !== cartId)); };
-      const clearCart = () => { if (cart.length > 0) setCart([]); };
+
       const handleCheckout = (saleDetails) => {
         processSale(saleDetails);
       };
@@ -1542,8 +1762,31 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
             </div>}
             
             {prodTab === 'manage' ? (<>
-            <div className="flex items-center gap-3">
-              <div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" /><input className="input-field w-full pl-9 py-2 text-sm rounded-full" placeholder="Search products..." value={search} onChange={e => setSearch(e.target.value)} /></div>
+            <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3 w-full">
+              <div className="flex-1 flex flex-col gap-2">
+                <div className="relative w-full">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input className="input-field w-full pl-9 pr-10 py-2 text-sm rounded-full" placeholder="Search products..." value={search} onChange={e => setSearch(e.target.value)} />
+                  <button 
+                    onClick={toggleVoiceAssistant} 
+                    className={`absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-full transition-all ${isListening ? 'bg-red-500 text-white animate-pulse' : 'text-slate-400 hover:text-emerald-600 hover:bg-slate-100'}`}
+                    title="Voice Assistant (e.g., 'add 2 milk', 'clear cart', 'checkout cash')"
+                  >
+                    <Volume2 className="w-4 h-4" />
+                  </button>
+                </div>
+                {(voiceFeedback || voiceError || isListening) && (
+                  <div className={`text-xs px-3 py-1.5 rounded-lg flex items-center justify-between transition-all ${voiceError ? 'bg-red-50 text-red-600 border border-red-100' : isListening ? 'bg-blue-50 text-blue-600 border border-blue-100 animate-pulse' : 'bg-emerald-50 text-emerald-700 border border-emerald-100'}`}>
+                    <span className="font-medium flex items-center gap-1.5">
+                      <span className={`w-2.5 h-2.5 rounded-full ${voiceError ? 'bg-red-500' : isListening ? 'bg-blue-500 animate-ping' : 'bg-emerald-500'}`}></span>
+                      {isListening ? 'Listening... Speak (e.g. "add 2 milk", "clear cart", "checkout cash")' : voiceFeedback || voiceError}
+                    </span>
+                    <button onClick={() => { setVoiceFeedback(''); setVoiceError(''); }} className="text-slate-400 hover:text-slate-600">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
+              </div>
               <div className="flex-1 flex gap-2 items-center">
                 <select className="input-field flex-1" value={cat} onChange={e => setCat(e.target.value)}><option value="">All Categories</option>{cats.map(c => <option key={c} value={c}>{c}</option>)}</select>
                 {cat && (role === 'owner' || perms.editProducts) && (
