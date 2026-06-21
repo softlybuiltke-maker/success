@@ -1521,9 +1521,40 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
           return;
         }
 
+        if (transcript.startsWith('restock ') || transcript.startsWith('stock ')) {
+          let prefixLength = transcript.startsWith('restock ') ? 8 : 6;
+          let commandBody = transcript.substring(prefixLength).trim();
+          const qtyMatch = commandBody.match(/^(\d+)\s+(.+)$/);
+          let quantity = 1;
+          let productNameQuery = commandBody;
+          if (qtyMatch) {
+            quantity = parseInt(qtyMatch[1], 10);
+            productNameQuery = qtyMatch[2].trim();
+          }
+
+          let matchedProduct = products.find(p => p.name.toLowerCase() === productNameQuery);
+          if (!matchedProduct) {
+            matchedProduct = products.find(p => p.name.toLowerCase().includes(productNameQuery));
+          }
+          if (!matchedProduct) {
+            matchedProduct = products.find(p => p.barcode && p.barcode.toLowerCase() === productNameQuery);
+          }
+
+          if (matchedProduct) {
+            addStock(matchedProduct, quantity);
+            speak(`Restocked ${quantity} ${matchedProduct.name}`);
+            setVoiceFeedback(`Restocked ${quantity} x ${matchedProduct.name}`);
+          } else {
+            toast.error(`Could not find product "${productNameQuery}" to restock`);
+            speak(`Product not found`);
+            setVoiceFeedback(`Not found: "${productNameQuery}"`);
+          }
+          return;
+        }
+
         setVoiceFeedback(`Unknown command: "${transcript}"`);
         speak("Command not recognized");
-      }, [products, cart, speak]);
+      }, [products, cart, speak, addStock]);
 
       const toggleVoiceAssistant = () => {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -1662,7 +1693,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
       const handleCheckout = (saleDetails) => {
         processSale(saleDetails);
       };
-      const addStock = (p, q) => { const updated = products.map(x => x.id === p.id ? { ...x, stock: x.stock + q } : x); setProducts(updated); setStockHistory([...stockHistory, { name: p.name, qty: q, action: 'Added', barcode: p.barcode, date: new Date().toISOString(), cashierName: currentUser?.name }]); toast.success(`+${q} Stock: ${p.name}`, { duration: 1500 }); };
+      function addStock(p, q) { const updated = products.map(x => x.id === p.id ? { ...x, stock: x.stock + q } : x); setProducts(updated); setStockHistory([...stockHistory, { name: p.name, qty: q, action: 'Added', barcode: p.barcode, date: new Date().toISOString(), cashierName: currentUser?.name }]); toast.success(`+${q} Stock: ${p.name}`, { duration: 1500 }); };
       const handleScan = (code) => { const p = products.find(x => x.barcode === code); if (scannerMode === 'sell') { if (!p) { toast.error('Product not found', { duration: 1500 }); return; } addToCart(p); setScannerMode(null); return; } if (scannerMode === 'stock') { if (!p) { toast.error('Product not found', { duration: 1500 }); return; } setScannerMode(null); const q = prompt(`Add Stock for "${p.name}":`, '1'); if (q !== null) { const n = parseFloat(q); if (!isNaN(n) && n > 0) addStock(p, n); else toast.error('Invalid quantity'); } return; } setScannerMode(null); if (scannerMode === 'fill') { if (editId) setEditData({ ...editData, barcode: code }); else setForm({ ...form, code }); toast.success('Barcode scanned'); } else if (scannerMode === 'update') { if (products.some(x => x.barcode === code && x.id !== updateId)) { toast.error('Barcode is already taken'); } else { setProducts(products.map(x => x.id === updateId ? { ...x, barcode: code } : x)); toast.success('Barcode updated'); } setUpdateId(null); } };
 
       const cats = useMemo(() => [...new Set(products.map(p => p.category))].filter(Boolean).sort((a, b) => a.localeCompare(b)), [products]);
