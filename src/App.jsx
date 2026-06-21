@@ -299,7 +299,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
       notifyLowStock: 5
     };
 
-    const DEFAULT_SUPER_ADMIN_SETTINGS = { scannerSize: 250, autoLockMinutes: 0, lockPin: '' };
+    const DEFAULT_SUPER_ADMIN_SETTINGS = { scannerSize: 250, autoLockMinutes: 0, lockPin: '', periodInDays: 0, enablePeriodLock: false };
 
     // --- HELPER COMPONENTS & UTILS ---
 
@@ -694,6 +694,21 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
                     <label className="block text-sm font-semibold text-amber-900 mb-1">Auto-Lock Timer (Minutes)</label>
                     <input type="number" className="input-field border-amber-200 focus:border-amber-500 focus:ring-amber-200" value={settings.autoLockMinutes} onChange={e => updateSettings({ ...settings, autoLockMinutes: parseInt(e.target.value) || 0 })} />
                     <p className="text-xs text-amber-700 mt-2">Set to 0 to disable auto-lock.</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-amber-900 mb-1">Period (Days)</label>
+                    <input type="number" className="input-field border-amber-200 focus:border-amber-500 focus:ring-amber-200" value={settings.periodInDays || ''} onChange={e => updateSettings({ ...settings, periodInDays: parseInt(e.target.value) || 0 })} placeholder="e.g. 30" />
+                    <p className="text-xs text-amber-700 mt-2">Set the period in days.</p>
+                  </div>
+                  <div className="flex items-center justify-between bg-amber-100/50 p-4 rounded-xl border border-amber-200">
+                    <div>
+                      <div className="font-semibold text-sm text-amber-900">Enable Period Lock</div>
+                      <div className="text-xs text-amber-700 mt-1">Lock the POS after the specified period.</div>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input type="checkbox" className="sr-only peer" checked={settings.enablePeriodLock || false} onChange={e => updateSettings({ ...settings, enablePeriodLock: e.target.checked })} />
+                      <div className="w-11 h-6 bg-amber-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600"></div>
+                    </label>
                   </div>
                   <div className="md:col-span-2 pt-4 border-t border-amber-200">
                     <button onClick={onLock} className="btn-primary bg-amber-600 hover:bg-amber-700 shadow-amber-200">Lock POS Instantly</button>
