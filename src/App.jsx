@@ -1380,8 +1380,70 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
       const clearCart = () => { if (cart.length > 0) setCart([]); };
 
       const handleVoiceCommand = useCallback((rawTranscript) => {
-        const transcript = rawTranscript.toLowerCase().trim();
-        setVoiceFeedback(`Heard: "${rawTranscript}"`);
+        // Map spoken numbers/homophones to actual digits
+        const numberMap = {
+          'one': '1', 'won': '1',
+          'two': '2', 'to': '2', 'too': '2',
+          'three': '3',
+          'four': '4', 'for': '4',
+          'five': '5',
+          'six': '6',
+          'seven': '7',
+          'eight': '8', 'ate': '8',
+          'nine': '9',
+          'ten': '10'
+        };
+
+        const words = rawTranscript.toLowerCase().trim().split(/\s+/);
+        const normalizedWords = words.map(w => numberMap[w] || w);
+        const transcript = normalizedWords.join(' ');
+
+        setVoiceFeedback(`Heard: "${rawTranscript}"${rawTranscript.toLowerCase() !== transcript ? ` (Parsed: "${transcript}")` : ''}`);
+
+        const findBestProductMatch = (query) => {
+          const cleanQuery = query.toLowerCase().trim();
+          if (!cleanQuery) return null;
+
+          // 1. Exact name match
+          let best = products.find(p => p.name.toLowerCase() === cleanQuery);
+          if (best) return best;
+
+          // 2. Exact barcode match
+          best = products.find(p => p.barcode && p.barcode.toLowerCase() === cleanQuery);
+          if (best) return best;
+
+          // 3. Starts with match
+          best = products.find(p => p.name.toLowerCase().startsWith(cleanQuery));
+          if (best) return best;
+
+          // 4. Includes match
+          best = products.find(p => p.name.toLowerCase().includes(cleanQuery));
+          if (best) return best;
+
+          // 5. Keyword similarity match
+          const queryWords = cleanQuery.split(/\s+/).filter(w => w.length > 1);
+          if (queryWords.length > 0) {
+            let highestScore = 0;
+            let bestMatch = null;
+            products.forEach(p => {
+              const prodNameLower = p.name.toLowerCase();
+              let score = 0;
+              queryWords.forEach(qw => {
+                if (prodNameLower.includes(qw)) {
+                  score += qw.length;
+                }
+              });
+              if (score > highestScore) {
+                highestScore = score;
+                bestMatch = p;
+              }
+            });
+            if (bestMatch && highestScore >= Math.min(...queryWords.map(w => w.length))) {
+              return bestMatch;
+            }
+          }
+          return null;
+        };
 
         if (transcript === 'clear cart' || transcript === 'clear') {
           clearCart();
@@ -1420,13 +1482,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
             productNameQuery = qtyMatch[2].trim();
           }
 
-          let matchedProduct = products.find(p => p.name.toLowerCase() === productNameQuery);
-          if (!matchedProduct) {
-            matchedProduct = products.find(p => p.name.toLowerCase().includes(productNameQuery));
-          }
-          if (!matchedProduct) {
-            matchedProduct = products.find(p => p.barcode && p.barcode.toLowerCase() === productNameQuery);
-          }
+          let matchedProduct = findBestProductMatch(productNameQuery);
 
           if (matchedProduct) {
             if (matchedProduct.stock <= 0) {
@@ -1532,13 +1588,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
             productNameQuery = qtyMatch[2].trim();
           }
 
-          let matchedProduct = products.find(p => p.name.toLowerCase() === productNameQuery);
-          if (!matchedProduct) {
-            matchedProduct = products.find(p => p.name.toLowerCase().includes(productNameQuery));
-          }
-          if (!matchedProduct) {
-            matchedProduct = products.find(p => p.barcode && p.barcode.toLowerCase() === productNameQuery);
-          }
+          let matchedProduct = findBestProductMatch(productNameQuery);
 
           if (matchedProduct) {
             addStock(matchedProduct, quantity);
