@@ -24,12 +24,12 @@ export default async function handler(req, res) {
     client = createClient({ url: httpUrl, authToken });
 
     let sql, args;
-    if (dbUrl) {
-      sql = `SELECT valid_until, is_blocked FROM users WHERE db_url = ?`;
-      args = [dbUrl];
-    } else {
+    if (handle) {
       sql = `SELECT valid_until, is_blocked FROM users WHERE LOWER(handle) = LOWER(?)`;
       args = [handle];
+    } else if (dbUrl) {
+      sql = `SELECT valid_until, is_blocked FROM users WHERE db_url = ?`;
+      args = [dbUrl];
     }
 
     const result = await client.execute({ sql, args });
