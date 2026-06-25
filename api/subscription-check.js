@@ -13,9 +13,9 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'GET') return res.status(405).json({ ok: false, error: 'Method not allowed' });
 
-  const { handle } = req.query || {};
-  if (!handle) {
-    return res.status(400).json({ ok: false, error: 'Missing handle' });
+  const { handle, dbUrl } = req.query || {};
+  if (!handle && !dbUrl) {
+    return res.status(400).json({ ok: false, error: 'Missing handle or dbUrl' });
   }
 
   let client;
@@ -23,10 +23,16 @@ export default async function handler(req, res) {
     const httpUrl = url.replace(/^libsql:\/\//, 'https://');
     client = createClient({ url: httpUrl, authToken });
 
-    const result = await client.execute({
-      sql: `SELECT valid_until, is_blocked FROM users WHERE LOWER(handle) = LOWER(?)`,
-      args: [handle]
-    });
+    let sql, args;
+    if (dbUrl) {
+      sql = `SELECT valid_until, is_blocked FROM users WHERE db_url = ?`;
+      args = [dbUrl];
+    } else {
+      sql = `SELECT valid_until, is_blocked FROM users WHERE LOWER(handle) = LOWER(?)`;
+      args = [handle];
+    }
+
+    const result = await client.execute({ sql, args });
 
     if (result.rows.length === 0) {
       return res.status(404).json({ ok: false, error: 'User not found' });

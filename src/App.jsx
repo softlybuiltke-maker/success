@@ -5061,11 +5061,21 @@ id,name,qty,barcode,date,cashierName
 
       // 2. Global Subscription check
       useEffect(() => {
-        if (!settings.storeHandle) return;
-
         const checkGlobalSubscription = async () => {
           try {
-            const res = await fetch(`/api/subscription-check?handle=${encodeURIComponent(settings.storeHandle)}&_t=${Date.now()}`, { cache: 'no-store' });
+            const params = new URLSearchParams();
+            if (settings.storeHandle) params.append('handle', settings.storeHandle);
+            try {
+              const raw = localStorage.getItem('db_session');
+              if (raw) {
+                const s = JSON.parse(raw);
+                if (s && s.url) params.append('dbUrl', s.url);
+              }
+            } catch {}
+
+            if (!params.has('handle') && !params.has('dbUrl')) return;
+
+            const res = await fetch(`/api/subscription-check?${params.toString()}&_t=${Date.now()}`, { cache: 'no-store' });
             if (res.ok) {
               const data = await res.json();
               if (data.ok) {
