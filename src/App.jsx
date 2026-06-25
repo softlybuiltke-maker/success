@@ -4876,7 +4876,13 @@ id,name,qty,barcode,date,cashierName
       const [showLoginPwd, setShowLoginPwd] = useState(false);
       const [settings, setSettings] = useState(DEFAULT_SETTINGS);
       const [superAdminSettings, setSuperAdminSettings] = useState(DEFAULT_SUPER_ADMIN_SETTINGS);
-      const [isLocked, setIsLocked] = useState(false);
+      const [isLockedRaw, setIsLockedRaw] = useState(() => localStorage.getItem('sb_is_locked') === 'true');
+      const setIsLocked = (val) => {
+        setIsLockedRaw(val);
+        if (val) localStorage.setItem('sb_is_locked', 'true');
+        else localStorage.removeItem('sb_is_locked');
+      };
+      const isLocked = isLockedRaw;
       const [isLoading, setIsLoading] = useState(true);
 
       // Super unbypassable tamper protection
@@ -4996,7 +5002,6 @@ id,name,qty,barcode,date,cashierName
 
             if (sas) {
               setSuperAdminSettings({ ...DEFAULT_SUPER_ADMIN_SETTINGS, ...sas });
-              if (sas.lockPin && sas.lockPin.length > 0) setIsLocked(true);
               if (sas.isBlocked) {
                 localStorage.setItem('SUPER_ADMIN_BLOCK', 'true');
                 setIsBlockedByAdmin(true);
