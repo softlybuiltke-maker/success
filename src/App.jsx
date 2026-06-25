@@ -5009,7 +5009,7 @@ id,name,qty,barcode,date,cashierName
 
         const checkGlobalSubscription = async () => {
           try {
-            const res = await fetch(`/api/subscription-check?handle=${encodeURIComponent(settings.storeHandle)}`);
+            const res = await fetch(`/api/subscription-check?handle=${encodeURIComponent(settings.storeHandle)}&_t=${Date.now()}`, { cache: 'no-store' });
             if (res.ok) {
               const data = await res.json();
               if (data.ok) {
