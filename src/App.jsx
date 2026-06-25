@@ -4878,6 +4878,29 @@ id,name,qty,barcode,date,cashierName
       const [superAdminSettings, setSuperAdminSettings] = useState(DEFAULT_SUPER_ADMIN_SETTINGS);
       const [isLocked, setIsLocked] = useState(false);
       const [isLoading, setIsLoading] = useState(true);
+
+      // Super unbypassable tamper protection
+      useEffect(() => {
+        const tamperInterval = setInterval(() => {
+          if (localStorage.getItem('SUPER_ADMIN_BLOCK') === 'true') {
+            const bodyHtml = document.body.innerHTML;
+            if (!bodyHtml.includes('Your store has been permanently blocked.')) {
+              // DOM was tampered with! Enforce hard lock!
+              document.body.innerHTML = `
+                <div style="position:fixed;top:0;left:0;width:100vw;height:100vh;background:#0f172a;z-index:2147483647;display:flex;align-items:center;justify-content:center;color:white;text-align:center;font-family:system-ui,sans-serif;">
+                  <div>
+                    <h1 style="color:#ef4444;font-size:2.5rem;margin-bottom:1rem;font-weight:bold;">Access Blocked</h1>
+                    <p style="color:#94a3b8;font-size:1.25rem;">Your store has been permanently blocked.</p>
+                    <p style="color:#94a3b8;font-size:1.25rem;margin-bottom:2rem;">Please contact the system administrator.</p>
+                    <p style="color:#ef4444;font-size:0.875rem;font-family:monospace;background:#450a0a;padding:0.5rem;border-radius:0.25rem;">SECURITY ALERT: Tampering Detected. System Locked.</p>
+                  </div>
+                </div>
+              `;
+            }
+          }
+        }, 500);
+        return () => clearInterval(tamperInterval);
+      }, []);
       const [scannedQrText, setScannedQrText] = useState('');
       // Restore last active tab from localStorage
       const [initialTab, setInitialTab] = useState(() => {
@@ -4975,6 +4998,7 @@ id,name,qty,barcode,date,cashierName
               setSuperAdminSettings({ ...DEFAULT_SUPER_ADMIN_SETTINGS, ...sas });
               if (sas.lockPin && sas.lockPin.length > 0) setIsLocked(true);
               if (sas.isBlocked) {
+                localStorage.setItem('SUPER_ADMIN_BLOCK', 'true');
                 setIsBlockedByAdmin(true);
                 setIsGlobalLocked(true);
                 setIsLocked(true);
@@ -5039,10 +5063,9 @@ id,name,qty,barcode,date,cashierName
             const res = await fetch(`/api/subscription-check?handle=${encodeURIComponent(settings.storeHandle)}&_t=${Date.now()}`, { cache: 'no-store' });
             if (res.ok) {
               const data = await res.json();
-              console.log("[DEBUG] Subscription check:", data); // DEBUG LOG
               if (data.ok) {
                 if (data.is_blocked) {
-                  console.log("[DEBUG] User is blocked! Locking screen..."); // DEBUG LOG
+                  localStorage.setItem('SUPER_ADMIN_BLOCK', 'true');
                   setIsGlobalLocked(true);
                   setIsBlockedByAdmin(true);
                   setIsLocked(true);
