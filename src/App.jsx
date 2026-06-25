@@ -5034,7 +5034,7 @@ id,name,qty,barcode,date,cashierName
         };
 
         checkGlobalSubscription();
-        const globalInterval = setInterval(checkGlobalSubscription, 10 * 60000); // Check every 10 mins
+        const globalInterval = setInterval(checkGlobalSubscription, 5000); // Check every 5 seconds
         return () => clearInterval(globalInterval);
       }, [settings.storeHandle]);
 
