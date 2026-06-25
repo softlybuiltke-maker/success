@@ -27,7 +27,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
       try {
         // Dual-write: Push to Global Registry
         try {
-          await fetch('/api/registry-upload', {
+          const regRes = await fetch('/api/registry-upload', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -36,8 +36,22 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
               db_token: payloadObj.token
             })
           });
+          
+          if (!regRes.ok) {
+            console.error("Global registry API error:", await regRes.text());
+            throw new Error("API returned " + regRes.status);
+          }
+          
+          // Also check if the response is actually JSON, not HTML from Vite SPA fallback
+          const contentType = regRes.headers.get("content-type");
+          if (contentType && contentType.indexOf("text/html") !== -1) {
+             throw new Error("API route not found. Are you using Vite 'npm run dev' instead of Vercel?");
+          }
+          
         } catch (e) {
           console.warn("Failed to upload to Global Registry", e);
+          toast.error("Global SaaS Sync Failed: " + e.message);
+          return false;
         }
 
         // Original fallback: Push to Public KV Store
