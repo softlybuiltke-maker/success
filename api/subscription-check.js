@@ -24,7 +24,7 @@ export default async function handler(req, res) {
     client = createClient({ url: httpUrl, authToken });
 
     const result = await client.execute({
-      sql: `SELECT valid_until, is_blocked FROM users WHERE handle = ?`,
+      sql: `SELECT valid_until, is_blocked FROM users WHERE LOWER(handle) = LOWER(?)`,
       args: [handle]
     });
 
