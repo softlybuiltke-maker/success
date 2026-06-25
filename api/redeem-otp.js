@@ -64,7 +64,7 @@ export default async function handler(req, res) {
     });
 
     await client.execute({
-      sql: `UPDATE users SET valid_until = ? WHERE handle = ?`,
+      sql: `UPDATE users SET valid_until = ?, is_blocked = 0 WHERE handle = ?`,
       args: [newValidUntilIso, handle]
     });
 
