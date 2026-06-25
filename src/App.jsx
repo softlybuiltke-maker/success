@@ -342,7 +342,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
       notifyLowStock: 5
     };
 
-    const DEFAULT_SUPER_ADMIN_SETTINGS = { scannerSize: 250, lockPin: '', periodInDays: 0, enablePeriodLock: false, periodStartDate: null };
+    const DEFAULT_SUPER_ADMIN_SETTINGS = { scannerSize: 250, lockPin: '', periodInDays: 0, enablePeriodLock: false, periodStartDate: null, isBlocked: false };
 
     // --- HELPER COMPONENTS & UTILS ---
 
@@ -4974,6 +4974,11 @@ id,name,qty,barcode,date,cashierName
             if (sas) {
               setSuperAdminSettings({ ...DEFAULT_SUPER_ADMIN_SETTINGS, ...sas });
               if (sas.lockPin && sas.lockPin.length > 0) setIsLocked(true);
+              if (sas.isBlocked) {
+                setIsBlockedByAdmin(true);
+                setIsGlobalLocked(true);
+                setIsLocked(true);
+              }
             }
             else saveDataToDB('superAdminSettings', DEFAULT_SUPER_ADMIN_SETTINGS);
           })
@@ -5041,16 +5046,31 @@ id,name,qty,barcode,date,cashierName
                   setIsGlobalLocked(true);
                   setIsBlockedByAdmin(true);
                   setIsLocked(true);
+                  setSuperAdminSettings(prev => {
+                    if (prev.isBlocked !== true) {
+                      const updated = { ...prev, isBlocked: true };
+                      saveDataToDB('superAdminSettings', updated);
+                      return updated;
+                    }
+                    return prev;
+                  });
                 } else if (data.valid_until) {
                   const validUntil = new Date(data.valid_until);
+                  let isGlobal = false;
                   if (validUntil < new Date()) {
-                    setIsGlobalLocked(true);
-                    setIsBlockedByAdmin(false);
+                    isGlobal = true;
                     setIsLocked(true);
-                  } else {
-                    setIsGlobalLocked(false);
-                    setIsBlockedByAdmin(false);
                   }
+                  setIsGlobalLocked(isGlobal);
+                  setIsBlockedByAdmin(false);
+                  setSuperAdminSettings(prev => {
+                    if (prev.isBlocked !== false) {
+                      const updated = { ...prev, isBlocked: false };
+                      saveDataToDB('superAdminSettings', updated);
+                      return updated;
+                    }
+                    return prev;
+                  });
                 }
               }
             }
@@ -5209,6 +5229,10 @@ id,name,qty,barcode,date,cashierName
       };
 
       if (isLoading) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><div className="w-12 h-12 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin"></div></div>;
+
+      if (isBlockedByAdmin || isPeriodExpired || isGlobalLocked) {
+        return <LockScreen correctPin={superAdminSettings.lockPin} onUnlock={() => { setIsLocked(false); setIsGlobalLocked(false); setIsPeriodExpired(false); setIsBlockedByAdmin(false); }} isPeriodExpired={isPeriodExpired || isGlobalLocked} isBlockedByAdmin={isBlockedByAdmin} recoveryPin={superAdminSettings.recoveryPin} storeHandle={settings.storeHandle} />;
+      }
 
       return (
         <>
