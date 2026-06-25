@@ -247,7 +247,8 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
         if (result.ok && result.data && Object.keys(result.data).length > 0) {
           // Data found! Save it to local DB
           for (const [key, value] of Object.entries(result.data)) {
-            await saveDataToDB(key, value);
+            const cleanedValue = Array.isArray(value) ? value.filter(Boolean) : value;
+            await saveDataToDB(key, cleanedValue);
           }
           return true; // Indicates we pulled data
         }
@@ -4302,7 +4303,7 @@ id,name,qty,barcode,date,cashierName
       
       const updateProducts = (newData) => { setProducts(newData); saveDataToDB('products', newData); tursoSync('products', newData); }; const updateCustomers = (newData) => { setCustomers(newData); saveDataToDB('customers', newData); tursoSync('customers', newData); }; const updateDebts = (newData) => { setDebts(newData); saveDataToDB('debts', newData); tursoSync('debts', newData); }; const updatePaidDebts = (newData) => { setPaidDebts(newData); saveDataToDB('paidDebts', newData); tursoSync('paidDebts', newData); }; const updateExpenses = (newData) => { setExpenses(newData); saveDataToDB('expenses', newData); tursoSync('expenses', newData); }; const updateSalesHistory = (newData) => { setSalesHistory(newData); saveDataToDB('salesHistory', newData); tursoSync('salesHistory', newData); const snaps = computeMonthlyAggregates(newData); if (snaps.length > 0) { saveMonthlySnapshots(snaps).then(() => setMonthlySnapshots(snaps)); } }; const updateStockHistory = (newData) => { setStockHistory(newData); saveDataToDB('stockHistory', newData); tursoSync('stockHistory', newData); };
 
-      useEffect(() => { const loadAllData = async () => { const loadedProducts = await loadDataFromDB('products') || []; const loadedCustomers = await loadDataFromDB('customers') || []; const loadedDebts = await loadDataFromDB('debts') || []; const loadedPaidDebts = await loadDataFromDB('paidDebts') || []; const loadedExpenses = await loadDataFromDB('expenses') || []; const loadedSales = await loadDataFromDB('salesHistory') || []; const loadedStock = await loadDataFromDB('stockHistory') || []; const loadedSnaps = await loadMonthlySnapshots() || []; setProducts(loadedProducts); setCustomers(loadedCustomers); setDebts(loadedDebts); setPaidDebts(loadedPaidDebts); setExpenses(loadedExpenses); setSalesHistory(loadedSales); setStockHistory(loadedStock); setMonthlySnapshots(loadedSnaps); }; loadAllData(); }, []);
+      useEffect(() => { const loadAllData = async () => { const loadedProducts = (await loadDataFromDB('products') || []).filter(Boolean); const loadedCustomers = (await loadDataFromDB('customers') || []).filter(Boolean); const loadedDebts = (await loadDataFromDB('debts') || []).filter(Boolean); const loadedPaidDebts = (await loadDataFromDB('paidDebts') || []).filter(Boolean); const loadedExpenses = (await loadDataFromDB('expenses') || []).filter(Boolean); const loadedSales = (await loadDataFromDB('salesHistory') || []).filter(Boolean); const loadedStock = (await loadDataFromDB('stockHistory') || []).filter(Boolean); const loadedSnaps = (await loadMonthlySnapshots() || []).filter(Boolean); setProducts(loadedProducts); setCustomers(loadedCustomers); setDebts(loadedDebts); setPaidDebts(loadedPaidDebts); setExpenses(loadedExpenses); setSalesHistory(loadedSales); setStockHistory(loadedStock); setMonthlySnapshots(loadedSnaps); }; loadAllData(); }, []);
 
       // ── Real-time sync: poll Turso every 5s for changes made on other devices ──
       const lastSyncTsRef = useRef(0);
@@ -4318,13 +4319,13 @@ id,name,qty,barcode,date,cashierName
           // Update React state AND local IndexedDB with the new data from Turso
           if (data.settings && !Array.isArray(data.settings))   { if (setSettingsRaw) setSettingsRaw({ ...DEFAULT_SETTINGS, ...data.settings }); await saveDataToDB('settings', data.settings); }
           if (data.superAdminSettings && !Array.isArray(data.superAdminSettings)) { if (setSuperAdminSettingsRaw) setSuperAdminSettingsRaw({ ...DEFAULT_SUPER_ADMIN_SETTINGS, ...data.superAdminSettings }); await saveDataToDB('superAdminSettings', data.superAdminSettings); }
-          if (Array.isArray(data.products))     { if (Array.isArray(data.products)) setProducts(data.products);         await saveDataToDB('products', data.products); }
-          if (Array.isArray(data.salesHistory)) { if (Array.isArray(data.salesHistory)) setSalesHistory(data.salesHistory);  await saveDataToDB('salesHistory', data.salesHistory); const snaps = computeMonthlyAggregates(data.salesHistory); if (snaps.length > 0) { saveMonthlySnapshots(snaps).then(() => setMonthlySnapshots(snaps)); } }
-          if (Array.isArray(data.customers))    { if (Array.isArray(data.customers)) setCustomers(data.customers);         await saveDataToDB('customers', data.customers); }
-          if (Array.isArray(data.debts))        { if (Array.isArray(data.debts)) setDebts(data.debts);                 await saveDataToDB('debts', data.debts); }
-          if (Array.isArray(data.paidDebts))    { if (Array.isArray(data.paidDebts)) setPaidDebts(data.paidDebts);         await saveDataToDB('paidDebts', data.paidDebts); }
-          if (Array.isArray(data.expenses))     { if (Array.isArray(data.expenses)) setExpenses(data.expenses);           await saveDataToDB('expenses', data.expenses); }
-          if (Array.isArray(data.stockHistory)) { if (Array.isArray(data.stockHistory)) setStockHistory(data.stockHistory);   await saveDataToDB('stockHistory', data.stockHistory); }
+          if (Array.isArray(data.products))     { const v = data.products.filter(Boolean); setProducts(v);         await saveDataToDB('products', v); }
+          if (Array.isArray(data.salesHistory)) { const v = data.salesHistory.filter(Boolean); setSalesHistory(v);  await saveDataToDB('salesHistory', v); const snaps = computeMonthlyAggregates(v); if (snaps.length > 0) { saveMonthlySnapshots(snaps).then(() => setMonthlySnapshots(snaps)); } }
+          if (Array.isArray(data.customers))    { const v = data.customers.filter(Boolean); setCustomers(v);         await saveDataToDB('customers', v); }
+          if (Array.isArray(data.debts))        { const v = data.debts.filter(Boolean); setDebts(v);                 await saveDataToDB('debts', v); }
+          if (Array.isArray(data.paidDebts))    { const v = data.paidDebts.filter(Boolean); setPaidDebts(v);         await saveDataToDB('paidDebts', v); }
+          if (Array.isArray(data.expenses))     { const v = data.expenses.filter(Boolean); setExpenses(v);           await saveDataToDB('expenses', v); }
+          if (Array.isArray(data.stockHistory)) { const v = data.stockHistory.filter(Boolean); setStockHistory(v);   await saveDataToDB('stockHistory', v); }
         };
 
         const interval = setInterval(async () => {
