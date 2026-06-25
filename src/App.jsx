@@ -3229,6 +3229,13 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
           toast.success('Recovery key saved securely!');
           setStatus('Saved! Downloading your backup PDF...');
           generateRecoveryPdf(cleanHandle, pwd, creds);
+          
+          setSettings(prev => {
+            const newSettings = { ...prev, storeHandle: cleanHandle };
+            saveDataToDB('settings', newSettings);
+            return newSettings;
+          });
+
           setStatus('✅ Saved & PDF downloaded! Keep the PDF in a safe place.');
           setHandle(''); setPwd('');
         } else {
@@ -5012,8 +5019,10 @@ id,name,qty,barcode,date,cashierName
             const res = await fetch(`/api/subscription-check?handle=${encodeURIComponent(settings.storeHandle)}&_t=${Date.now()}`, { cache: 'no-store' });
             if (res.ok) {
               const data = await res.json();
+              console.log("[DEBUG] Subscription check:", data); // DEBUG LOG
               if (data.ok) {
                 if (data.is_blocked) {
+                  console.log("[DEBUG] User is blocked! Locking screen..."); // DEBUG LOG
                   setIsGlobalLocked(true);
                   setIsLocked(true);
                 } else if (data.valid_until) {
@@ -5227,6 +5236,13 @@ id,name,qty,barcode,date,cashierName
                   try {
                     const creds = await downloadFromCloudRegistry(handle, pwd);
                     localStorage.setItem('db_session', JSON.stringify(creds));
+                    
+                    setSettings(prev => {
+                      const newSettings = { ...prev, storeHandle: handle };
+                      saveDataToDB('settings', newSettings);
+                      return newSettings;
+                    });
+                    
                     const session = JSON.parse(localStorage.getItem('sb_session') || '{}');
                     localStorage.setItem('sb_session', JSON.stringify({ ...session, view: 'pin' }));
                     toast.success('Recovery successful! Connecting...', { id: toastId });
@@ -5270,6 +5286,13 @@ id,name,qty,barcode,date,cashierName
                     
                     const creds = { url: data.db_url, token: data.db_token };
                     localStorage.setItem('db_session', JSON.stringify(creds));
+                    
+                    setSettings(prev => {
+                      const newSettings = { ...prev, storeHandle: handle };
+                      saveDataToDB('settings', newSettings);
+                      return newSettings;
+                    });
+                    
                     const session = JSON.parse(localStorage.getItem('sb_session') || '{}');
                     localStorage.setItem('sb_session', JSON.stringify({ ...session, view: 'pin' }));
                     toast.success('Recovery successful! Connecting...', { id: toastId });
