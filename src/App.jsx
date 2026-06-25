@@ -268,6 +268,18 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
       { id: 'blip', name: 'Tech Blip', url: 'https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3' }
     ];
 
+    const getSafeCashiers = (settings) => {
+      if (!settings) return [];
+      if (Array.isArray(settings.cashiers)) return settings.cashiers;
+      if (typeof settings.cashiers === 'string') {
+        try {
+          const parsed = JSON.parse(settings.cashiers);
+          if (Array.isArray(parsed)) return parsed;
+        } catch (e) {}
+      }
+      return [];
+    };
+
     const DEFAULT_SETTINGS = {
       name: '',
       address: '',
@@ -2769,7 +2781,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 
     
     const CashierSettingsPanel = ({ currentUser, settings, setSettings }) => {
-      const cashier = settings.cashiers?.find(c => c.id === currentUser.id);
+      const cashier = getSafeCashiers(settings).find(c => c.id === currentUser.id);
       const [loginMethod, setLoginMethod] = useState(cashier?.password ? 'password' : 'pin');
       const [newPin, setNewPin] = useState(cashier?.pin || '');
       const [newPassword, setNewPassword] = useState(cashier?.password || '');
@@ -2779,7 +2791,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
         if (loginMethod === 'pin' && newPin.length !== 4) return toast.error('PIN must be 4 digits.');
         if (loginMethod === 'password' && newPassword.length < 4) return toast.error('Password must be at least 4 characters.');
         
-        const updatedCashiers = settings.cashiers.map(c => 
+        const updatedCashiers = getSafeCashiers(settings).map(c => 
           c.id === currentUser.id 
             ? { ...c, pin: loginMethod === 'pin' ? newPin : '', password: loginMethod === 'password' ? newPassword : '' } 
             : c
@@ -3178,6 +3190,8 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
       const [showFullImportModal, setShowFullImportModal] = useState(false);
       const [selectedCashierQR, setSelectedCashierQR] = useState(null);
 
+      const getSafeCashiers = (s) => (Array.isArray(s.cashiers) ? s.cashiers : []);
+
       const generateCashierQR = (cashier) => {
         const raw = localStorage.getItem('db_session');
         if (!raw) return toast.error('No database connection active.');
@@ -3198,10 +3212,10 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
       };
 
       const update = (k, v) => { setSettings({ ...settings, [k]: v }); };
-      const addCashier = () => { const { name, pin, role, permissions } = cashierForm; if (!name || !pin || pin.length !== 4) return toast.error('Name and 4-digit PIN required.'); if (settings.ownerPin === pin || settings.cashiers?.some(c => c.pin === pin)) return toast.error('PIN is already in use.'); const newCashiers = [...(settings.cashiers || []), { id: crypto.randomUUID(), name, pin, role: role || 'cashier', permissions }]; setSettings({ ...settings, cashiers: newCashiers }); setCashierForm({ name: '', pin: '', role: 'cashier', permissions: { ...DEFAULT_PERMISSIONS } }); toast.success('Staff added.'); };
-      const removeCashier = (id) => { if (!confirm('Are you sure?')) return; setSettings({ ...settings, cashiers: settings.cashiers.filter(c => c.id !== id) }); toast.success('Staff removed.'); };
+      const addCashier = () => { const { name, pin, role, permissions } = cashierForm; if (!name || !pin || pin.length !== 4) return toast.error('Name and 4-digit PIN required.'); if (settings.ownerPin === pin || getSafeCashiers(settings).some(c => c.pin === pin)) return toast.error('PIN is already in use.'); const newCashiers = [...getSafeCashiers(settings), { id: crypto.randomUUID(), name, pin, role: role || 'cashier', permissions }]; setSettings({ ...settings, cashiers: newCashiers }); setCashierForm({ name: '', pin: '', role: 'cashier', permissions: { ...DEFAULT_PERMISSIONS } }); toast.success('Staff added.'); };
+      const removeCashier = (id) => { if (!confirm('Are you sure?')) return; setSettings({ ...settings, cashiers: getSafeCashiers(settings).filter(c => c.id !== id) }); toast.success('Staff removed.'); };
       const handleEditCashier = (cashier) => { setEditingCashierId(cashier.id); setEditingCashierData({ name: cashier.name, pin: cashier.pin, role: cashier.role || 'cashier', permissions: cashier.permissions || { ...DEFAULT_PERMISSIONS } }); };
-      const handleSaveCashier = (id) => { const { name, pin } = editingCashierData; if (!name || !pin || pin.length !== 4) return toast.error('Name and 4-digit PIN required.'); if (settings.ownerPin === pin || settings.cashiers?.some(c => c.pin === pin && c.id !== id)) return toast.error('PIN is already in use.'); const updatedCashiers = settings.cashiers.map(c => c.id === id ? { ...c, ...editingCashierData } : c); setSettings({ ...settings, cashiers: updatedCashiers }); setEditingCashierId(null); toast.success('Staff updated.'); };
+      const handleSaveCashier = (id) => { const { name, pin } = editingCashierData; if (!name || !pin || pin.length !== 4) return toast.error('Name and 4-digit PIN required.'); if (settings.ownerPin === pin || getSafeCashiers(settings).some(c => c.pin === pin && c.id !== id)) return toast.error('PIN is already in use.'); const updatedCashiers = getSafeCashiers(settings).map(c => c.id === id ? { ...c, ...editingCashierData } : c); setSettings({ ...settings, cashiers: updatedCashiers }); setEditingCashierId(null); toast.success('Staff updated.'); };
       const handleSoundUpload = (e) => { const file = e.target.files?.[0]; if (file) { const r = new FileReader(); r.onload = ev => { if (ev.target?.result) { update('scanSound', ev.target.result); new Audio(ev.target.result).play(); } }; r.readAsDataURL(file); } };
 
       return (<div className="max-w-3xl space-y-6 pb-20"><h2 className="text-2xl font-bold text-slate-800">Shop Settings</h2><div className="card space-y-6 bg-white p-6">
@@ -3234,7 +3248,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
             </div>
           )}
           <div className="mt-4 space-y-2">
-            {(settings.cashiers || []).map(cashier => editingCashierId === cashier.id ? (
+            {getSafeCashiers(settings).map(cashier => editingCashierId === cashier.id ? (
               <div key={cashier.id} className="bg-white p-3 rounded-lg border shadow-sm">
                 <div className="flex items-center gap-2 mb-3">
                   <input className="input-field py-1" value={editingCashierData.name} onChange={e => setEditingCashierData({ ...editingCashierData, name: e.target.value })} placeholder="Name" />
@@ -4449,7 +4463,7 @@ id,name,qty,barcode,date,cashierName
           return { role: 'owner', name: currentUser.name || settings.ownerName || 'Owner' };
         }
         if (currentUser.role === 'cashier') {
-          const cashierDetails = (settings.cashiers || []).find(c => c.id === currentUser.id);
+          const cashierDetails = getSafeCashiers(settings).find(c => c.id === currentUser.id);
           return { ...currentUser, name: cashierDetails?.name || 'Cashier', permissions: cashierDetails?.permissions || {} };
         }
         return currentUser;
@@ -4616,20 +4630,23 @@ id,name,qty,barcode,date,cashierName
 
       const renderTab = () => {
         const props = { settings, setSettings: onSettingsChange, superAdminSettings, products, setProducts: updateProducts, customers, setCustomers: updateCustomers, debts, setDebts: updateDebts, paidDebts, setPaidDebts: updatePaidDebts, expenses, setExpenses: updateExpenses, salesHistory, setSalesHistory: updateSalesHistory, stockHistory, setStockHistory: updateStockHistory, currentUser: effectiveCurrentUser, processSale, printData, suppliers: settings.suppliers, updateCustomers, cart, setCart };
-        if (tab === 'products') return <ErrorBoundary><ProductPanel {...props} /></ErrorBoundary>;
-        if (tab === 'customers') return <CustomerPanel {...props} />;
-        if (tab === 'debts') return <DebtPanel {...props} />;
-        if (tab === 'expenses') return <ExpensePanel {...props} />;
-        if (tab === 'summary' && effectiveCurrentUser?.role === 'owner') return <SummaryPanel {...props} onCancelSale={handleCancelSale} />;
-        if (tab === 'forecast' && effectiveCurrentUser?.role === 'owner') return <InventoryForecastPanel {...props} />;
-        if (tab === 'monthlyPerformance' && effectiveCurrentUser?.role === 'owner') return <MonthlyPerformancePanel salesHistory={salesHistory} snapshots={monthlySnapshots} allowClear={!!settings.allowClearMonthlyPerf} onClearSnapshots={async () => { await clearMonthlySnapshots(); setMonthlySnapshots([]); }} />;
-        if (tab === 'cashierSalesHistory' && effectiveCurrentUser?.role === 'cashier') return <CashierSalesHistoryPanel {...props} />;
-        if (tab === 'cashierSettings' && effectiveCurrentUser?.role === 'cashier') return <CashierSettingsPanel currentUser={effectiveCurrentUser} settings={settings} setSettings={onSettingsChange} />;
-        if (tab === 'settings' && effectiveCurrentUser?.role === 'owner') return <SettingsPanel {...props} updateProducts={updateProducts} updateSalesHistory={updateSalesHistory} updateExpenses={updateExpenses} updateDebts={updateDebts} updatePaidDebts={updatePaidDebts} updateStockHistory={updateStockHistory} handleDownloadPdf={handleDownloadPdf} />;
-        if (tab === 'suppliers' && canView('suppliers')) return <SupplierPanel {...props} />;
-        if (tab === 'stockHistory' && canView('stockHistory')) return <StockHistoryPanel stockHistory={stockHistory} />;
-        if (tab === 'staffProfiles' && effectiveCurrentUser?.role === 'owner') return <StaffProfilesPanel users={[{name: 'Owner', role: 'owner'}, ...(settings.cashiers || []).map(c => ({name: c.name, role: c.role || 'cashier'}))]} salesHistory={salesHistory} stockHistory={stockHistory} expenses={expenses} products={products} customers={customers} />;
-        return null;
+        const Content = (() => {
+          if (tab === 'products') return <ProductPanel {...props} />;
+          if (tab === 'customers') return <CustomerPanel {...props} />;
+          if (tab === 'debts') return <DebtPanel {...props} />;
+          if (tab === 'expenses') return <ExpensePanel {...props} />;
+          if (tab === 'summary' && effectiveCurrentUser?.role === 'owner') return <SummaryPanel {...props} onCancelSale={handleCancelSale} />;
+          if (tab === 'forecast' && effectiveCurrentUser?.role === 'owner') return <InventoryForecastPanel {...props} />;
+          if (tab === 'monthlyPerformance' && effectiveCurrentUser?.role === 'owner') return <MonthlyPerformancePanel salesHistory={salesHistory} snapshots={monthlySnapshots} allowClear={!!settings.allowClearMonthlyPerf} onClearSnapshots={async () => { await clearMonthlySnapshots(); setMonthlySnapshots([]); }} />;
+          if (tab === 'cashierSalesHistory' && effectiveCurrentUser?.role === 'cashier') return <CashierSalesHistoryPanel {...props} />;
+          if (tab === 'cashierSettings' && effectiveCurrentUser?.role === 'cashier') return <CashierSettingsPanel currentUser={effectiveCurrentUser} settings={settings} setSettings={onSettingsChange} />;
+          if (tab === 'settings' && effectiveCurrentUser?.role === 'owner') return <SettingsPanel {...props} updateProducts={updateProducts} updateSalesHistory={updateSalesHistory} updateExpenses={updateExpenses} updateDebts={updateDebts} updatePaidDebts={updatePaidDebts} updateStockHistory={updateStockHistory} handleDownloadPdf={handleDownloadPdf} />;
+          if (tab === 'suppliers' && canView('suppliers')) return <SupplierPanel {...props} />;
+          if (tab === 'stockHistory' && canView('stockHistory')) return <StockHistoryPanel stockHistory={stockHistory} />;
+          if (tab === 'staffProfiles' && effectiveCurrentUser?.role === 'owner') return <StaffProfilesPanel users={[{name: 'Owner', role: 'owner'}, ...getSafeCashiers(settings).map(c => ({name: c.name, role: c.role || 'cashier'}))]} salesHistory={salesHistory} stockHistory={stockHistory} expenses={expenses} products={products} customers={customers} />;
+          return null;
+        })();
+        return <ErrorBoundary>{Content}</ErrorBoundary>;
       };
 
       if (!effectiveCurrentUser) return null;
@@ -4922,7 +4939,7 @@ id,name,qty,barcode,date,cashierName
             setView('dash');
             toast.success('Owner Access');
           } else {
-            const cashier = (settings.cashiers || []).find(c => (c.pin === v && v !== '') || (c.password === v && v !== ''));
+            const cashier = getSafeCashiers(settings).find(c => (c.pin === v && v !== '') || (c.password === v && v !== ''));
             if (cashier) {
               if (cashier.role === 'owner') {
                 setCurrentUser({ role: 'owner', name: cashier.name });
@@ -4959,7 +4976,7 @@ id,name,qty,barcode,date,cashierName
           setView('dash');
           toast.success('Owner Access');
         } else {
-          const cashier = (settings.cashiers || []).find(c => c.pin === v);
+          const cashier = getSafeCashiers(settings).find(c => c.pin === v);
           if (cashier) {
             if (cashier.role === 'owner') {
               setCurrentUser({ role: 'owner', name: cashier.name });
