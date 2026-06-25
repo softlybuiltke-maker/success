@@ -649,7 +649,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
     };
 
     // Lock Screen Component
-    const LockScreen = ({ correctPin, onUnlock, isPeriodExpired, recoveryPin, storeHandle }) => {
+    const LockScreen = ({ correctPin, onUnlock, isPeriodExpired, isBlockedByAdmin, recoveryPin, storeHandle }) => {
       const [pin, setPin] = useState('');
       const [otp, setOtp] = useState('');
       const [loading, setLoading] = useState(false);
@@ -689,6 +689,20 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
           setLoading(false);
         }
       };
+
+      if (isBlockedByAdmin) {
+        return (
+          <div className="fixed inset-0 z-[200] bg-slate-900 flex flex-col items-center justify-center p-4">
+            <div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-sm text-center">
+              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Lock className="w-8 h-8 text-red-600" />
+              </div>
+              <h2 className="text-2xl font-bold mb-2 text-slate-800">Access Blocked</h2>
+              <p className="text-sm text-slate-500 mb-8">This store has been blocked by the Super Admin. Please contact support.</p>
+            </div>
+          </div>
+        );
+      }
 
       if (isPeriodExpired) {
         return (
@@ -4986,6 +5000,7 @@ id,name,qty,barcode,date,cashierName
       // Period Lock Mechanism
       const [isPeriodExpired, setIsPeriodExpired] = useState(false);
       const [isGlobalLocked, setIsGlobalLocked] = useState(false);
+      const [isBlockedByAdmin, setIsBlockedByAdmin] = useState(false);
 
       // 1. Local period check (Fallback / Local rule)
       useEffect(() => {
@@ -5024,14 +5039,17 @@ id,name,qty,barcode,date,cashierName
                 if (data.is_blocked) {
                   console.log("[DEBUG] User is blocked! Locking screen..."); // DEBUG LOG
                   setIsGlobalLocked(true);
+                  setIsBlockedByAdmin(true);
                   setIsLocked(true);
                 } else if (data.valid_until) {
                   const validUntil = new Date(data.valid_until);
                   if (validUntil < new Date()) {
                     setIsGlobalLocked(true);
+                    setIsBlockedByAdmin(false);
                     setIsLocked(true);
                   } else {
                     setIsGlobalLocked(false);
+                    setIsBlockedByAdmin(false);
                   }
                 }
               }
@@ -5194,7 +5212,7 @@ id,name,qty,barcode,date,cashierName
 
       return (
         <>
-          {isLocked && <LockScreen correctPin={superAdminSettings.lockPin} onUnlock={() => { setIsLocked(false); setIsGlobalLocked(false); setIsPeriodExpired(false); }} isPeriodExpired={isPeriodExpired || isGlobalLocked} recoveryPin={superAdminSettings.recoveryPin} storeHandle={settings.storeHandle} />}
+          {isLocked && <LockScreen correctPin={superAdminSettings.lockPin} onUnlock={() => { setIsLocked(false); setIsGlobalLocked(false); setIsPeriodExpired(false); setIsBlockedByAdmin(false); }} isPeriodExpired={isPeriodExpired || isGlobalLocked} isBlockedByAdmin={isBlockedByAdmin} recoveryPin={superAdminSettings.recoveryPin} storeHandle={settings.storeHandle} />}
           {view === 'superAdmin' && (
             <SuperAdminPanel
               settings={superAdminSettings}
