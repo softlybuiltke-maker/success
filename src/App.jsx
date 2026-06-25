@@ -25,6 +25,22 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 
     const uploadToCloudRegistry = async (storeHandle, masterPassword, payloadObj) => {
       try {
+        // Dual-write: Push to Global Registry
+        try {
+          await fetch('/api/registry-upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              handle: storeHandle,
+              db_url: payloadObj.url,
+              db_token: payloadObj.token
+            })
+          });
+        } catch (e) {
+          console.warn("Failed to upload to Global Registry", e);
+        }
+
+        // Original fallback: Push to Public KV Store
         const payloadStr = JSON.stringify(payloadObj);
         const ciphertext = CryptoJS.AES.encrypt(payloadStr, masterPassword).toString();
         const hexCiphertext = CryptoJS.enc.Hex.stringify(CryptoJS.enc.Utf8.parse(ciphertext));
@@ -619,9 +635,11 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
     };
 
     // Lock Screen Component
-    const LockScreen = ({ correctPin, onUnlock, isPeriodExpired, recoveryPin }) => {
+    const LockScreen = ({ correctPin, onUnlock, isPeriodExpired, recoveryPin, storeHandle }) => {
       const [pin, setPin] = useState('');
-      const [loginMode, setLoginMode] = useState('pin');
+      const [otp, setOtp] = useState('');
+      const [loading, setLoading] = useState(false);
+
       const checkLockPin = (v) => {
         if (v.length > 8) return;
         setPin(v);
@@ -634,14 +652,69 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
           onUnlock();
         }
       };
+
+      const handleRedeemOtp = async () => {
+        if (!otp) return;
+        setLoading(true);
+        try {
+          const res = await fetch('/api/redeem-otp', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ handle: storeHandle, code: otp })
+          });
+          const data = await res.json();
+          if (data.ok) {
+            toast.success(`Subscription activated! Added ${data.added_days} days.`);
+            onUnlock();
+          } else {
+            toast.error(data.error || 'Invalid activation code');
+          }
+        } catch (err) {
+          toast.error("Failed to redeem code. Please check your connection.");
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      if (isPeriodExpired) {
+        return (
+          <div className="fixed inset-0 z-[200] bg-slate-900 flex flex-col items-center justify-center p-4">
+            <div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-sm text-center">
+              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Lock className="w-8 h-8 text-red-600" />
+              </div>
+              <h2 className="text-2xl font-bold mb-2 text-slate-800">Subscription Expired</h2>
+              <p className="text-sm text-slate-500 mb-8">Enter your Activation Code to renew your subscription.</p>
+              
+              <input 
+                type="text" 
+                placeholder="e.g. A7B9-X2M4" 
+                value={otp} 
+                onChange={(e) => setOtp(e.target.value.toUpperCase())}
+                className="w-full text-center tracking-widest text-lg p-4 bg-slate-50 border border-slate-200 rounded-xl mb-4 focus:ring-2 focus:ring-red-500 outline-none"
+              />
+              
+              <button 
+                onClick={handleRedeemOtp}
+                disabled={loading}
+                className="w-full p-4 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-all flex items-center justify-center gap-2"
+              >
+                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Key className="w-5 h-5" />}
+                Redeem Code
+              </button>
+            </div>
+          </div>
+        );
+      }
+
       return (
         <div className="fixed inset-0 z-[200] bg-slate-900 flex flex-col items-center justify-center p-4">
           <div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-sm text-center">
             <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <Lock className="w-8 h-8 text-red-600" />
             </div>
-            <h2 className="text-2xl font-bold mb-2 text-slate-800">{isPeriodExpired ? "Subscription Expired" : "System Locked"}</h2>
-            <p className="text-sm text-slate-500 mb-8">{isPeriodExpired ? "Please contact Super Admin to renew." : "Enter PIN to unlock"}</p>
+            <h2 className="text-2xl font-bold mb-2 text-slate-800">System Locked</h2>
+            <p className="text-sm text-slate-500 mb-8">Enter PIN to unlock</p>
             <div className="flex justify-center gap-3 mb-8 h-3">
               {Array.from({ length: Math.max(4, pin.length) }).map((_, i) => <div key={i} className={`w-3 h-3 rounded-full transition-all ${pin.length > i ? 'bg-red-600 scale-125' : 'bg-slate-200'}`}></div>)}
             </div>
@@ -4891,6 +4964,9 @@ id,name,qty,barcode,date,cashierName
 
       // Period Lock Mechanism
       const [isPeriodExpired, setIsPeriodExpired] = useState(false);
+      const [isGlobalLocked, setIsGlobalLocked] = useState(false);
+
+      // 1. Local period check (Fallback / Local rule)
       useEffect(() => {
         if (!superAdminSettings.enablePeriodLock || !superAdminSettings.periodInDays || !superAdminSettings.periodStartDate) {
           setIsPeriodExpired(false);
@@ -4912,6 +4988,41 @@ id,name,qty,barcode,date,cashierName
         const interval = setInterval(checkPeriod, 60000);
         return () => clearInterval(interval);
       }, [superAdminSettings.enablePeriodLock, superAdminSettings.periodInDays, superAdminSettings.periodStartDate]);
+
+      // 2. Global Subscription check
+      useEffect(() => {
+        if (!settings.storeHandle) return;
+
+        const checkGlobalSubscription = async () => {
+          try {
+            const res = await fetch(`/api/subscription-check?handle=${encodeURIComponent(settings.storeHandle)}`);
+            if (res.ok) {
+              const data = await res.json();
+              if (data.ok) {
+                if (data.is_blocked) {
+                  setIsGlobalLocked(true);
+                  setIsLocked(true);
+                } else if (data.valid_until) {
+                  const validUntil = new Date(data.valid_until);
+                  if (validUntil < new Date()) {
+                    setIsGlobalLocked(true);
+                    setIsLocked(true);
+                  } else {
+                    setIsGlobalLocked(false);
+                  }
+                }
+              }
+            }
+          } catch (err) {
+            console.error("Global subscription check failed:", err);
+            // Fail open if network is down
+          }
+        };
+
+        checkGlobalSubscription();
+        const globalInterval = setInterval(checkGlobalSubscription, 10 * 60000); // Check every 10 mins
+        return () => clearInterval(globalInterval);
+      }, [settings.storeHandle]);
 
       const logout = () => {
         // Fully clear the persisted session so refresh after logout goes to landing
@@ -5060,7 +5171,7 @@ id,name,qty,barcode,date,cashierName
 
       return (
         <>
-          {isLocked && <LockScreen correctPin={superAdminSettings.lockPin} onUnlock={() => setIsLocked(false)} isPeriodExpired={isPeriodExpired} recoveryPin={superAdminSettings.recoveryPin} />}
+          {isLocked && <LockScreen correctPin={superAdminSettings.lockPin} onUnlock={() => { setIsLocked(false); setIsGlobalLocked(false); setIsPeriodExpired(false); }} isPeriodExpired={isPeriodExpired || isGlobalLocked} recoveryPin={superAdminSettings.recoveryPin} storeHandle={settings.storeHandle} />}
           {view === 'superAdmin' && (
             <SuperAdminPanel
               settings={superAdminSettings}
@@ -5116,7 +5227,50 @@ id,name,qty,barcode,date,cashierName
                   <input name="pwd" type="password" className="w-full p-3 border border-slate-200 rounded-xl mb-4 bg-slate-50 focus:bg-white focus:ring-2 ring-indigo-500 outline-none" placeholder="••••••••" required />
                   <button type="submit" className="w-full mt-2 bg-indigo-600 text-white font-bold py-3 rounded-xl hover:bg-indigo-700 transition-colors">Recover Store</button>
                 </form>
+                <button onClick={() => setView('cloud_recovery_forgot')} className="mt-4 text-xs text-indigo-500 hover:text-indigo-700 block mx-auto underline decoration-dotted">Forgot Master Password?</button>
                 <button onClick={() => setView('landing')} className="mt-4 text-sm text-slate-400 hover:text-slate-600 font-medium block mx-auto">Cancel</button>
+              </div>
+            </div>
+          )}
+
+          {view === 'cloud_recovery_forgot' && (
+            <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+              <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm text-center">
+                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4"><Key className="w-8 h-8 text-red-600" /></div>
+                <h2 className="text-xl font-bold mb-2 text-slate-800">Master PIN Recovery</h2>
+                <p className="text-sm text-slate-500 mb-6">Enter your Store Handle and the one-time Recovery Code provided by the developer.</p>
+                <form onSubmit={async (e) => { 
+                  e.preventDefault(); 
+                  const handle = e.target.handle.value.trim().replace(/^@/, ''); 
+                  const code = e.target.code.value.trim(); 
+                  if (!handle || !code) return toast.error('Both fields required');
+                  const toastId = toast.loading('Verifying recovery code...');
+                  try {
+                    const res = await fetch('/api/registry-recover', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ handle, code })
+                    });
+                    const data = await res.json();
+                    if (!data.ok) throw new Error(data.error || 'Recovery failed');
+                    
+                    const creds = { url: data.db_url, token: data.db_token };
+                    localStorage.setItem('db_session', JSON.stringify(creds));
+                    const session = JSON.parse(localStorage.getItem('sb_session') || '{}');
+                    localStorage.setItem('sb_session', JSON.stringify({ ...session, view: 'pin' }));
+                    toast.success('Recovery successful! Connecting...', { id: toastId });
+                    setTimeout(() => window.location.reload(), 1500);
+                  } catch (err) {
+                    toast.error(err.message || 'Recovery failed', { id: toastId });
+                  }
+                }} className="mb-4 text-left">
+                  <label className="text-xs font-semibold text-slate-500 block mb-1">Store Handle</label>
+                  <input name="handle" className="w-full p-3 border border-slate-200 rounded-xl mb-4 bg-slate-50 focus:bg-white focus:ring-2 ring-red-500 outline-none" placeholder="@JohnsMart" required autoFocus />
+                  <label className="text-xs font-semibold text-slate-500 block mb-1">Developer Recovery Code</label>
+                  <input name="code" type="text" className="w-full p-3 border border-slate-200 rounded-xl mb-4 bg-slate-50 focus:bg-white focus:ring-2 ring-red-500 outline-none uppercase" placeholder="e.g. 123456" required />
+                  <button type="submit" className="w-full mt-2 bg-red-600 text-white font-bold py-3 rounded-xl hover:bg-red-700 transition-colors">Verify & Recover</button>
+                </form>
+                <button onClick={() => setView('cloud_recovery')} className="mt-4 text-sm text-slate-400 hover:text-slate-600 font-medium block mx-auto">Back to Login</button>
               </div>
             </div>
           )}
