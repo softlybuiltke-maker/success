@@ -5234,6 +5234,35 @@ id,name,qty,barcode,date,cashierName
         }
       };
 
+      const checkAdminOTP = async (v) => {
+        if (v.length > 6) return;
+        setPin(v);
+        
+        if (v.length === 6) {
+          try {
+            const res = await fetch('/api/registry-recover', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ handle: settings?.storeHandle, code: v })
+            });
+            const data = await res.json();
+            if (data.ok) {
+              toast.success('Admin OTP verified! Access granted.');
+              setCurrentUser({ role: 'owner' });
+              setInitialTab('settings');
+              setView('dash');
+              setPin('');
+            } else {
+              toast.error(data.error || 'Invalid OTP');
+              setPin('');
+            }
+          } catch(err) {
+            toast.error('Network error checking OTP');
+            setPin('');
+          }
+        }
+      };
+
       const checkRecoveryPin = (v) => {
         const expected = superAdminSettings?.recoveryPin;
         if (expected && v.length > expected.length) return;
