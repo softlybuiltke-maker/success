@@ -11,6 +11,7 @@ function decrypt(text) {
   }
   if (!text.includes(':')) return text; // fallback if not encrypted
   const textParts = text.split(':');
+  if (textParts[0].length !== 32) return text; // The IV must be exactly 32 hex characters. If not, it's plaintext (e.g. libsql)
   const iv = Buffer.from(textParts.shift(), 'hex');
   const encryptedText = Buffer.from(textParts.join(':'), 'hex');
   const decipher = crypto.createDecipheriv('aes-256-cbc', Buffer.from(ENCRYPTION_KEY.padEnd(32, '0').slice(0, 32)), iv);
