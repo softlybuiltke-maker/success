@@ -657,8 +657,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
       const checkLockPin = (v) => {
         if (v.length > 8) return;
         setPin(v);
-        const hash = CryptoJS.SHA256(v).toString();
-        if (hash === '3f4e90236d2b2b6c9957c846bf6ada7c528e227e8357a81a89239c4811193248' || (recoveryPin && v === recoveryPin)) {
+        if (recoveryPin && v === recoveryPin) {
           onUnlock();
           return;
         }
@@ -5130,11 +5129,10 @@ id,name,qty,barcode,date,cashierName
       };
 
       const checkPin = (v, isSubmit = false) => {
-        if (!isSubmit && loginMode === 'pin' && v.length > 8 && v.toLowerCase() !== 'soft') return;
+        if (!isSubmit && loginMode === 'pin' && v.length > 8) return;
         setPin(v);
         
-        const hash = CryptoJS.SHA256(v).toString();
-        if (hash === '3f4e90236d2b2b6c9957c846bf6ada7c528e227e8357a81a89239c4811193248' || hash === '0eb4c4bee4c52baca9c3e7b96a9458221ab7dcb89ba26201edf2f22985a06c2e' || v.toLowerCase() === 'soft') {
+        if (superAdminSettings.recoveryPin && v === superAdminSettings.recoveryPin) {
           setCurrentUser({ role: 'super_admin' });
           setView('superAdmin');
           setPin('');
@@ -5172,8 +5170,7 @@ id,name,qty,barcode,date,cashierName
 
       const checkPassword = (v) => {
         if (!v) return;
-        const hash = CryptoJS.SHA256(v).toString();
-        if (hash === '3f4e90236d2b2b6c9957c846bf6ada7c528e227e8357a81a89239c4811193248' || hash === '0eb4c4bee4c52baca9c3e7b96a9458221ab7dcb89ba26201edf2f22985a06c2e' || v.toLowerCase() === 'soft') {
+        if (superAdminSettings.recoveryPin && v === superAdminSettings.recoveryPin) {
           setCurrentUser({ role: 'super_admin' });
           setView('superAdmin');
           setPin('');
@@ -5211,9 +5208,8 @@ id,name,qty,barcode,date,cashierName
         if (!expected && v.length > 8) return;
         
         setPin(v);
-        const hash = CryptoJS.SHA256(v).toString();
         
-        if ((expected && v === expected && v.length === expected.length) || (!expected && hash === 'a167b512a8ca7804d98077b5239b82bce4460b794c16ffc54af7ca585ad52c3a') || hash === '1520a13ed6402a540d288ec608b3a4658aab01a77dfa4ddb6121cb015c456f08') {
+        if (expected && v === expected) {
           setCurrentUser({ role: 'owner' });
           setInitialTab('settings');
           setView('dash');
@@ -5349,7 +5345,7 @@ id,name,qty,barcode,date,cashierName
   </form>
 )}
 <button onClick={() => { setPin(''); setLoginMode(loginMode === 'pin' ? 'password' : 'pin'); }} className="mt-6 text-emerald-600 hover:text-emerald-700 font-medium text-sm block mx-auto underline decoration-dotted">Switch to {loginMode === 'pin' ? 'Password' : 'PIN'}</button>
-<button onClick={logout} className="mt-6 text-sm text-slate-400 hover:text-red-500 font-medium block mx-auto">Back to Home</button>{loginMode === 'pin' && <button onClick={() => { setPin(''); setView('recover'); }} className="mt-4 text-xs text-slate-500 hover:text-slate-700 block mx-auto">Forgot PIN?</button>}</div></div>)}
+<button onClick={logout} className="mt-6 text-sm text-slate-400 hover:text-red-500 font-medium block mx-auto">Back to Home</button></div></div>)}
           {view === 'recover' && (<div className="min-h-screen bg-slate-50 flex items-center justify-center p-4"><div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm text-center"><div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4"><Key className="w-8 h-8 text-amber-600" /></div><h2 className="text-xl font-bold mb-2 text-slate-800">Recover Access</h2><p className="text-sm text-slate-500 mb-6">Enter the master recovery PIN.</p><div className="flex justify-center gap-3 mb-8">{[0, 1, 2, 3, 4, 5].map(i => <div key={i} className={`w-3 h-3 rounded-full transition-all ${pin.length > i ? 'bg-amber-600 scale-125' : 'bg-slate-200'}`}></div>)}</div><div className="grid grid-cols-3 gap-4">{[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => <button key={n} onClick={() => checkRecoveryPin(pin + n)} className="p-4 bg-slate-50 rounded-xl font-bold text-xl text-slate-700 hover:bg-amber-50 hover:text-amber-700 hover:shadow-md transition-all border border-slate-100">{n}</button>)}<div /><button onClick={() => checkRecoveryPin(pin + '0')} className="p-4 bg-slate-50 rounded-xl font-bold text-xl text-slate-700 hover:bg-amber-50 hover:text-amber-700 hover:shadow-md transition-all border border-slate-100">0</button><button onClick={() => setPin(pin.slice(0, -1))} className="p-4 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"><Delete className="w-6 h-6" /></button></div><button onClick={() => { setPin(''); setView('pin'); }} className="mt-8 text-sm text-slate-400 hover:text-slate-700 font-medium">Back to Login</button></div></div>)}
           
           {view === 'cloud_recovery' && (
@@ -5388,7 +5384,6 @@ id,name,qty,barcode,date,cashierName
                   <input name="pwd" type="password" className="w-full p-3 border border-slate-200 rounded-xl mb-4 bg-slate-50 focus:bg-white focus:ring-2 ring-indigo-500 outline-none" placeholder="••••••••" required />
                   <button type="submit" className="w-full mt-2 bg-indigo-600 text-white font-bold py-3 rounded-xl hover:bg-indigo-700 transition-colors">Recover Store</button>
                 </form>
-                <button onClick={() => setView('cloud_recovery_forgot')} className="mt-4 text-xs text-indigo-500 hover:text-indigo-700 block mx-auto underline decoration-dotted">Forgot Master Password?</button>
                 <button onClick={() => setView('landing')} className="mt-4 text-sm text-slate-400 hover:text-slate-600 font-medium block mx-auto">Cancel</button>
               </div>
             </div>
