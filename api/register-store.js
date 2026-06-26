@@ -1,4 +1,5 @@
 import { createClient } from '@libsql/client/web';
+import crypto from 'crypto';
 
 export default async function handler(req, res) {
   // Add CORS headers
@@ -55,7 +56,6 @@ export default async function handler(req, res) {
     // Expire immediately to require admin token
     const validUntil = new Date();
 
-    const crypto = require('crypto');
     const salt = crypto.randomBytes(16).toString('hex');
     const hash = crypto.scryptSync(password, salt, 64).toString('hex');
     const hashedPassword = `${salt}:${hash}`;
@@ -68,7 +68,7 @@ export default async function handler(req, res) {
     res.status(200).json({ ok: true, message: 'Store registered successfully' });
   } catch (error) {
     console.error("API Error:", error);
-    res.status(500).json({ ok: false, error: 'Service temporarily unavailable. Please try again later.' });
+    res.status(500).json({ ok: false, error: error.message || 'Service temporarily unavailable. Please try again later.' });
   } finally {
     if (client) {
       client.close();

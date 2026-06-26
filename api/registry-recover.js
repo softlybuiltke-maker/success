@@ -1,4 +1,5 @@
 import { createClient } from '@libsql/client/web';
+import crypto from 'crypto';
 
 const url = process.env.VITE_TURSO_DB_URL || "libsql://success-success.aws-ap-northeast-1.turso.io";
 const authToken = process.env.VITE_TURSO_DB_TOKEN || "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3ODI0MTM5MzksImlkIjoiMDE5ZjAwMjYtMWUwMS03NTYxLTg3YWMtZmNmMmM5Yzk1OTc3IiwicmlkIjoiMjQ2YmYzNjctMDZhMi00MzVlLTg2OTctZjAxMTQ5N2Q2ZjA0In0.PSSMjdrQZjrZVqotZPRBUl5_8J_ZJp2mNatNrwyJXrr0ONKoyBZhLBbhq8tdhxEQJef-oteujwTzlJyAa_BnCg";
@@ -6,7 +7,6 @@ const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY;
 
 function decrypt(text) {
   if (!ENCRYPTION_KEY || !text.includes(':')) return text; // fallback if not encrypted
-  const crypto = require('crypto');
   const textParts = text.split(':');
   const iv = Buffer.from(textParts.shift(), 'hex');
   const encryptedText = Buffer.from(textParts.join(':'), 'hex');
@@ -27,9 +27,9 @@ export default async function handler(req, res) {
     return res.status(500).json({ ok: false, error: 'Database configuration is missing' });
   }
 
-  const { handle, code } = req.body || {};
-  if (!handle || !code) {
-    return res.status(400).json({ ok: false, error: 'Missing handle or recovery code' });
+  const { code } = req.body || {};
+  if (!code) {
+    return res.status(400).json({ ok: false, error: 'Missing recovery code' });
   }
 
   let client;
@@ -52,9 +52,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ ok: false, error: 'Recovery code already used' });
     }
 
-    if (recCode.handle.toLowerCase().replace(/\s+/g, '') !== handle.toLowerCase().replace(/\s+/g, '')) {
-      return res.status(400).json({ ok: false, error: 'Recovery code does not match this store handle' });
-    }
+    const handle = recCode.handle;
 
     // 2. Fetch the user's DB URL and DB Token
     const userRes = await client.execute({
@@ -78,6 +76,7 @@ export default async function handler(req, res) {
     // Return the database credentials so the user can set a new PIN
     res.status(200).json({ 
       ok: true, 
+      handle,
       db_url,
       db_token
     });
