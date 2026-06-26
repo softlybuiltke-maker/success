@@ -5454,7 +5454,7 @@ id,name,qty,barcode,date,cashierName
       <p className="text-sm text-slate-500 mb-6">Enter your Store Handle and the 6-digit OTP from Super Admin.</p>
       <form onSubmit={async (e) => { 
         e.preventDefault();
-        const handle = e.target.handle.value.trim().replace(/^@/, '').replace(/\s+/g, '');
+        const handle = e.target.handle.value.trim().replace(/^@/, '');
         const code = e.target.code.value.replace(/\s/g, "");
         
         if (!handle || !code) return toast.error('Both fields required');

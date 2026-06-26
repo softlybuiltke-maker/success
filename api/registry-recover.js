@@ -52,7 +52,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ ok: false, error: 'Recovery code already used' });
     }
 
-    if (recCode.handle.toLowerCase() !== handle.toLowerCase()) {
+    if (recCode.handle.toLowerCase().replace(/\s+/g, '') !== handle.toLowerCase().replace(/\s+/g, '')) {
       return res.status(400).json({ ok: false, error: 'Recovery code does not match this store handle' });
     }
 
