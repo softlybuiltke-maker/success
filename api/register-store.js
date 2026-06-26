@@ -30,8 +30,8 @@ export default async function handler(req, res) {
     return res.status(400).json({ ok: false, error: 'Handle can only contain letters, numbers, underscores, and hyphens' });
   }
 
-  const url = process.env.VITE_TURSO_DB_URL;
-  const authToken = process.env.VITE_TURSO_DB_TOKEN;
+  const url = process.env.VITE_TURSO_DB_URL || "libsql://success-success.aws-ap-northeast-1.turso.io";
+  const authToken = process.env.VITE_TURSO_DB_TOKEN || "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3ODI0MTM5MzksImlkIjoiMDE5ZjAwMjYtMWUwMS03NTYxLTg3YWMtZmNmMmM5Yzk1OTc3IiwicmlkIjoiMjQ2YmYzNjctMDZhMi00MzVlLTg2OTctZjAxMTQ5N2Q2ZjA0In0.PSSMjdrQZjrZVqotZPRBUl5_8J_ZJp2mNatNrwyJXrr0ONKoyBZhLBbhq8tdhxEQJef-oteujwTzlJyAa_BnCg";
 
   if (!url || !authToken) {
     return res.status(500).json({ ok: false, error: 'Database configuration is missing' });
