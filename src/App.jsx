@@ -3321,7 +3321,7 @@ const PrintableStockForm = ({ products, settings }) => {
         } catch { return false; }
       };
 
-      const generateRecoveryPdf = (storeHandle, masterPwd, creds) => {
+      const generateRecoveryPdf = (storeHandle, masterPwd, creds, settings) => {
         try {
           const doc = new jsPDF();
           const pw = doc.internal.pageSize.getWidth();
@@ -3374,6 +3374,13 @@ const PrintableStockForm = ({ products, settings }) => {
 
           y = drawField('Store Handle', storeHandle, y);
           y = drawField('Master Password', masterPwd, y);
+          if (settings && settings.ownerPin) y = drawField('Owner PIN (4 digits)', settings.ownerPin, y);
+          if (settings && settings.ownerPassword) y = drawField('Owner Password', settings.ownerPassword, y);
+          if (settings && settings.cashiers && Array.isArray(settings.cashiers)) {
+            settings.cashiers.forEach(c => {
+              if (c.name && c.pin) y = drawField('Cashier: ' + c.name, 'PIN: ' + c.pin, y);
+            });
+          }
           y += 8;
 
           // Database credentials section
@@ -3395,7 +3402,7 @@ const PrintableStockForm = ({ products, settings }) => {
           doc.setTextColor(15, 23, 42);
           doc.setFontSize(7);
           doc.setFont('courier', 'normal');
-          const tokenStr = String((creds && creds.token) ? creds.token : 'N/A');
+          const tokenStr = String((creds && (creds.token || creds.authToken)) ? (creds.token || creds.authToken) : 'N/A');
           const tokenLines = doc.splitTextToSize(tokenStr, pw - 50);
           doc.text(tokenLines.slice(0, 3), 22, y + 16);
           y += 38;
@@ -3446,7 +3453,7 @@ const PrintableStockForm = ({ products, settings }) => {
         if (ok) {
           toast.success('Recovery key saved securely!');
           setStatus('Saved! Downloading your backup PDF...');
-          generateRecoveryPdf(cleanHandle, pwd, creds);
+          generateRecoveryPdf(cleanHandle, pwd, creds, settings);
           
           setSettings(prev => {
             const newSettings = { ...prev, storeHandle: cleanHandle };
