@@ -1488,8 +1488,53 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
       );
     };
 
+    
+const PrintableStockForm = ({ products, settings }) => {
+  // Pad with empty rows to reach a minimum of 100
+  const rows = [...products];
+  while (rows.length < 100) {
+    rows.push({ id: crypto.randomUUID(), name: '', category: '', barcode: '', isBlank: true });
+  }
+
+  return (
+    <div className="bg-white text-black p-8 font-sans w-full mx-auto" style={{ maxWidth: '210mm' }}>
+      <div className="text-center mb-6">
+        <h1 className="text-2xl font-bold uppercase tracking-widest">{settings?.name || 'Store'}</h1>
+        <h2 className="text-xl font-semibold mt-2 text-slate-600">Inventory Checklist</h2>
+        <p className="text-sm text-slate-500 mt-1">Date: {new Date().toLocaleDateString()}</p>
+      </div>
+      <table className="w-full border-collapse text-sm">
+        <thead>
+          <tr className="bg-slate-100 print:bg-slate-100">
+            <th className="border border-slate-400 p-2 text-left w-8">#</th>
+            <th className="border border-slate-400 p-2 text-left">Product Name</th>
+            <th className="border border-slate-400 p-2 text-left w-32">Category</th>
+            <th className="border border-slate-400 p-2 text-left w-32">Barcode</th>
+            <th className="border border-slate-400 p-2 text-left w-24">Cost</th>
+            <th className="border border-slate-400 p-2 text-left w-24">Price</th>
+            <th className="border border-slate-400 p-2 text-left w-24">Physical Stock</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((p, i) => (
+            <tr key={p.id || i}>
+              <td className="border border-slate-400 p-2 text-center text-slate-500">{i + 1}</td>
+              <td className="border border-slate-400 p-2 font-medium">{p.name || ''}</td>
+              <td className="border border-slate-400 p-2 text-xs">{p.category || ''}</td>
+              <td className="border border-slate-400 p-2 text-xs font-mono">{p.barcode || ''}</td>
+              <td className="border border-slate-400 p-2"></td>
+              <td className="border border-slate-400 p-2"></td>
+              <td className="border border-slate-400 p-2"></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
     const ProductPanel = ({ settings, superAdminSettings, products, setProducts, currentUser, processSale, printData, suppliers, customers, updateCustomers, stockHistory, setStockHistory, cart, setCart }) => {
-      const [search, setSearch] = useState(''); const [cat, setCat] = useState(''); const [scannerMode, setScannerMode] = useState(null); const [showImport, setShowImport] = useState(false); const [updateId, setUpdateId] = useState(null); const [form, setForm] = useState({ name: '', price: '', cost: '', stock: '', cat: '', code: '', isCommodity: false, unit: 'Kg', expiryDate: '' }); const [showBulkPriceUpdate, setShowBulkPriceUpdate] = useState(false); const [activeTab, setActiveTab] = useState('all'); const [editId, setEditId] = useState(null); const [editData, setEditData] = useState({}); const [isCheckingOut, setIsCheckingOut] = useState(false); const [showOrderModal, setShowOrderModal] = useState(false); const [showShoppingListModal, setShowShoppingListModal] = useState(false); const [shoppingListItems, setShoppingListItems] = useState([]); const [printShoppingListNow, setPrintShoppingListNow] = useState(false); const [selectedOrderItems, setSelectedOrderItems] = useState([]); const [initialSupplierId, setInitialSupplierId] = useState(null); const [showAttractMode, setShowAttractMode] = useState(false); const [showAddProduct, setShowAddProduct] = useState(false); const role = currentUser?.role; const perms = currentUser?.permissions || {};
+      const [search, setSearch] = useState(''); const [cat, setCat] = useState(''); const [scannerMode, setScannerMode] = useState(null); const [showImport, setShowImport] = useState(false); const [updateId, setUpdateId] = useState(null); const [form, setForm] = useState({ name: '', price: '', cost: '', stock: '', cat: '', code: '', isCommodity: false, unit: 'Kg', expiryDate: '' }); const [showBulkPriceUpdate, setShowBulkPriceUpdate] = useState(false); const [activeTab, setActiveTab] = useState('all'); const [editId, setEditId] = useState(null); const [editData, setEditData] = useState({}); const [isCheckingOut, setIsCheckingOut] = useState(false); const [showOrderModal, setShowOrderModal] = useState(false); const [showShoppingListModal, setShowShoppingListModal] = useState(false); const [shoppingListItems, setShoppingListItems] = useState([]); const [printShoppingListNow, setPrintShoppingListNow] = useState(false); const [selectedOrderItems, setSelectedOrderItems] = useState([]); const [initialSupplierId, setInitialSupplierId] = useState(null); const [showAttractMode, setShowAttractMode] = useState(false); const [showAddProduct, setShowAddProduct] = useState(false); const [isPrintingStockForm, setIsPrintingStockForm] = useState(false); const role = currentUser?.role; const perms = currentUser?.permissions || {};
 
       // Voice Assistant States and Logic
       const [isListening, setIsListening] = useState(false);
@@ -1970,6 +2015,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 
 
       return (<div className="space-y-6 pb-20">
+        {isPrintingStockForm && createPortal(<PrintableStockForm products={products} settings={settings} />, document.getElementById('print-area'))}
         <div className="flex flex-col sm:flex-row justify-between gap-4">
           <div className="sb-page-title">
             <h2 className="text-2xl font-bold text-slate-800">Products</h2>
@@ -1978,6 +2024,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
           <div className="flex gap-2 flex-wrap sb-quick-actions">
             {(role === 'owner' || perms.editProducts) && <button onClick={() => setShowAddProduct(v => !v)} className={`btn-primary px-4 py-2 ${showAddProduct ? 'bg-slate-600 hover:bg-slate-700' : 'bg-emerald-600 hover:bg-emerald-700'}`}>{showAddProduct ? <><X className="w-4 h-4" /> Close</> : <><Plus className="w-4 h-4" /> Add New Product</>}</button>}
             <button onClick={(e) => { e.stopPropagation(); setShowAttractMode(true) }} className="btn-primary bg-purple-600 hover:bg-purple-700 px-4 py-2"><Play className="w-4 h-4" /> Attract Mode</button>
+            {role === 'owner' && <button onClick={() => { setIsPrintingStockForm(true); setTimeout(() => { window.print(); setIsPrintingStockForm(false); }, 200); }} className="btn-primary bg-slate-800 hover:bg-slate-900 px-4 py-2"><Printer className="w-4 h-4" /> Print Stock Form</button>}
             <button onClick={() => setShowImport(true)} className="btn-primary px-4 py-2"><FileText className="w-4 h-4" /> Import List</button>
             {(role === 'owner' || perms.bulkPriceUpdate) && <button onClick={() => setShowBulkPriceUpdate(true)} className="btn-primary bg-blue-600 hover:bg-blue-700 px-4 py-2"><Edit2 className="w-4 h-4" /> Bulk Update</button>}
             {settings.showScan && (<><button onClick={() => setScannerMode('stock')} className="btn-primary px-4 py-2"><PackagePlus className="w-4 h-4" /> Scan to Stock</button>{settings.showScanToSell && <button onClick={() => setScannerMode('sell')} className="btn-primary px-4 py-2"><Scan className="w-4 h-4" /> Scan to Sell</button>}</>)}
