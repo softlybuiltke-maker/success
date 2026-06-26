@@ -48,9 +48,8 @@ export default async function handler(req, res) {
       return res.status(409).json({ ok: false, error: 'Store handle is already taken' });
     }
 
-    // Set trial expiration to 14 days from now
+    // Expire immediately to require admin token
     const validUntil = new Date();
-    validUntil.setDate(validUntil.getDate() + 14);
 
     await client.execute({
       sql: `INSERT INTO users (handle, password, valid_until, is_blocked) VALUES (?, ?, ?, 0)`,

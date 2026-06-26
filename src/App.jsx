@@ -5264,7 +5264,7 @@ id,name,qty,barcode,date,cashierName
 
       if (isLoading) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><div className="w-12 h-12 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin"></div></div>;
 
-      if (isBlockedByAdmin || isPeriodExpired || isGlobalLocked) {
+      if ((isBlockedByAdmin || isPeriodExpired || isGlobalLocked) && view !== 'signup' && view !== 'setup_owner') {
         return <LockScreen correctPin={superAdminSettings.lockPin} onUnlock={() => { setIsLocked(false); setIsGlobalLocked(false); setIsPeriodExpired(false); setIsBlockedByAdmin(false); }} isPeriodExpired={isPeriodExpired || isGlobalLocked} isBlockedByAdmin={isBlockedByAdmin} recoveryPin={superAdminSettings.recoveryPin} storeHandle={settings.storeHandle} />;
       }
 
@@ -5295,7 +5295,10 @@ id,name,qty,barcode,date,cashierName
                   e.preventDefault();
                   const h = e.target.handle.value;
                   const p = e.target.password.value;
-                  if (!h || !p) return toast.error('Fill all fields');
+                  const cp = e.target.confirm_password.value;
+                  const sn = e.target.store_name.value;
+                  if (!h || !p || !cp || !sn) return toast.error('Fill all fields');
+                  if (p !== cp) return toast.error('Passwords do not match');
                   const toastId = toast.loading('Registering...');
                   try {
                     const res = await fetch('/api/register-store', {
@@ -5306,11 +5309,11 @@ id,name,qty,barcode,date,cashierName
                     const data = await res.json();
                     if (data.ok) {
                       toast.success(data.message, { id: toastId });
-                      const updated = { ...settings, storeHandle: h };
+                      const updated = { ...settings, storeHandle: h, storeName: sn };
                       setSettings(updated);
                       if (typeof setSettingsRaw !== 'undefined') setSettingsRaw(updated);
                       await saveDataToDB('settings', updated);
-                      setView('pin');
+                      setView('setup_owner');
                     } else {
                       toast.error(data.error, { id: toastId });
                     }
@@ -5322,12 +5325,46 @@ id,name,qty,barcode,date,cashierName
                     <label className="block text-sm font-semibold text-slate-700 mb-1">Store Handle</label>
                     <input name="handle" type="text" className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 ring-emerald-500" placeholder="e.g. MyStore" />
                   </div>
-                  <div className="mb-6">
+                  <div className="mb-4">
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">Shop Name</label>
+                    <input name="store_name" type="text" className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 ring-emerald-500" placeholder="e.g. My Awesome Shop" />
+                  </div>
+                  <div className="mb-4 relative">
                     <label className="block text-sm font-semibold text-slate-700 mb-1">Store Password</label>
-                    <input name="password" type="password" className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 ring-emerald-500" placeholder="Store password" />
+                    <input name="password" type={showLoginPwd ? "text" : "password"} className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 ring-emerald-500" placeholder="Store password" />
+                    <button type="button" onClick={() => setShowLoginPwd(!showLoginPwd)} className="absolute right-3 top-9 text-slate-400 hover:text-slate-600"><Eye className="w-5 h-5" /></button>
+                  </div>
+                  <div className="mb-6 relative">
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">Repeat Password</label>
+                    <input name="confirm_password" type={showLoginPwd ? "text" : "password"} className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 ring-emerald-500" placeholder="Repeat password" />
                   </div>
                   <button type="submit" className="w-full bg-emerald-600 text-white font-bold py-3 rounded-xl hover:bg-emerald-700 transition-colors">Complete Setup</button>
                   <button type="button" onClick={() => setView('landing')} className="w-full mt-3 text-slate-400 hover:text-slate-600 font-medium py-2">Cancel</button>
+                </form>
+              </div>
+            </div>
+          )}
+          {view === 'setup_owner' && (
+            <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
+              <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm text-center">
+                <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Lock className="w-8 h-8 text-emerald-600" />
+                </div>
+                <h2 className="text-2xl font-bold text-slate-800 mb-2">Create Owner PIN</h2>
+                <p className="text-sm text-slate-500 mb-6">Set a 4-digit PIN for the store owner.</p>
+                <form onSubmit={async (e) => {
+                  e.preventDefault();
+                  const pin = e.target.pin.value;
+                  if (pin.length !== 4) return toast.error('PIN must be 4 digits');
+                  const updated = { ...settings, ownerPin: pin };
+                  setSettings(updated);
+                  if (typeof setSettingsRaw !== 'undefined') setSettingsRaw(updated);
+                  await saveDataToDB('settings', updated);
+                  toast.success('Owner PIN set!');
+                  setView('pin');
+                }}>
+                  <input name="pin" type="password" maxLength="4" pattern="\d{4}" className="w-full p-4 border border-slate-200 rounded-xl text-center text-2xl tracking-[0.5em] bg-slate-50 outline-none focus:ring-2 ring-emerald-500 mb-4" placeholder="••••" required />
+                  <button type="submit" className="w-full bg-emerald-600 text-white font-bold py-3 rounded-xl hover:bg-emerald-700 transition-colors">Save PIN & Continue</button>
                 </form>
               </div>
             </div>
