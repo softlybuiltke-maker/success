@@ -22,7 +22,7 @@ export default async function handler(req, res) {
 
     // 1. Check if the OTP is valid and unused
     const otpRes = await client.execute({
-      sql: `SELECT days_value, is_used FROM otps WHERE code = ?`,
+      sql: `SELECT days_value, is_used, target_handle FROM otps WHERE code = ?`,
       args: [code]
     });
 
@@ -33,6 +33,10 @@ export default async function handler(req, res) {
     const otp = otpRes.rows[0];
     if (otp.is_used) {
       return res.status(400).json({ ok: false, error: 'Activation code already used' });
+    }
+
+    if (otp.target_handle && otp.target_handle !== handle) {
+      return res.status(400).json({ ok: false, error: 'Activation code is not valid for this store' });
     }
 
     // 2. Fetch the user's current valid_until
