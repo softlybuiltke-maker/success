@@ -12,6 +12,7 @@ class ErrorBoundary extends React.Component {
 
   componentDidCatch(error, errorInfo) {
     console.error("ErrorBoundary caught an error", error, errorInfo);
+    this.setState({ errorInfo });
   }
 
   render() {
@@ -19,12 +20,18 @@ class ErrorBoundary extends React.Component {
       return (
         <div style={{
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-          height: '100vh', backgroundColor: '#f8fafc', color: '#0f172a', fontFamily: 'sans-serif'
+          minHeight: '100vh', backgroundColor: '#f8fafc', color: '#0f172a', fontFamily: 'sans-serif', padding: '2rem'
         }}>
-          <h1 style={{ fontSize: '2rem', marginBottom: '1rem' }}>Something went wrong.</h1>
-          <p style={{ marginBottom: '2rem', color: '#475569' }}>
-            We're sorry, but the application encountered an unexpected error.
+          <h1 style={{ fontSize: '2rem', marginBottom: '1rem', color: '#ef4444' }}>Something went wrong.</h1>
+          <p style={{ marginBottom: '1rem', color: '#475569' }}>
+            The application encountered an unexpected error.
           </p>
+          <div style={{ background: '#f1f5f9', padding: '1rem', borderRadius: '8px', width: '100%', maxWidth: '800px', overflowX: 'auto', marginBottom: '2rem' }}>
+            <p style={{ fontWeight: 'bold', color: '#b91c1c' }}>{this.state.error && this.state.error.toString()}</p>
+            <pre style={{ fontSize: '0.875rem', color: '#334155', marginTop: '1rem' }}>
+              {this.state.errorInfo && this.state.errorInfo.componentStack}
+            </pre>
+          </div>
           <button 
             onClick={() => window.location.reload()}
             style={{

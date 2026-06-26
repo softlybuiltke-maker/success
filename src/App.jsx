@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 // Safe JSON parser to prevent UI crashes
-function safeJSONParse(str, fallback = null) {
+function safeJSONParse(str, fallback = {}) {
   if (!str) return fallback;
   try {
     return safeJSONParse(str);
@@ -237,7 +237,7 @@ function safeJSONParse(str, fallback = null) {
       try {
         const raw = localStorage.getItem('db_session');
         if (!raw) return; // Not connected — skip silently
-        const { url, token } = safeJSONParse(raw);
+        const {} = safeJSONParse() || {};
         if (!url || !token) return;
         const r = await fetch('/api/sync', {
           method: 'POST',
@@ -275,7 +275,7 @@ function safeJSONParse(str, fallback = null) {
       try {
         const raw = localStorage.getItem('db_session');
         if (!raw) return false;
-        const { url, token } = safeJSONParse(raw);
+        const {} = safeJSONParse() || {};
         if (!url || !token) return false;
         
         const res = await fetch('/api/pull', {
@@ -3480,7 +3480,7 @@ const PrintableStockForm = ({ products, settings }) => {
       const generateCashierQR = (cashier) => {
         const raw = localStorage.getItem('db_session');
         if (!raw) return toast.error('No database connection active.');
-        const { url, token } = safeJSONParse(raw);
+        const {} = safeJSONParse() || {};
         
         const payload = {
           url,
