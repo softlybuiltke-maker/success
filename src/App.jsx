@@ -1491,7 +1491,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
     
 const PrintableStockForm = ({ products, settings }) => {
   const rows = [...products];
-  const itemsPerPage = 50;
+  const itemsPerPage = 20;
   
   const remainder = rows.length % itemsPerPage;
   let rowsToAdd = remainder === 0 && rows.length > 0 ? 0 : itemsPerPage - remainder;
@@ -2650,13 +2650,93 @@ const PrintableStockForm = ({ products, settings }) => {
         {view === 'sales' && (<HistoryModal title="Sales History" searchVal={salesSearch} onSearchChange={setSalesSearch} dateRange={salesDateRange} onDateChange={setSalesDateRange} onClose={() => setView('none')} onClear={() => clear('sales')} canDelete={currentUser?.role === 'owner'}><table className="w-full text-sm text-left"><thead className="bg-slate-50 text-slate-500 font-medium sticky top-0"><tr><th className="p-3">Date</th><th className="p-3">Product</th><th className="p-3">Qty</th><th className="p-3">Method</th><th className="p-3">Cashier</th><th className="p-3 text-right">Discount</th><th className="p-3 text-right">Total</th>{currentUser?.role === 'owner' && <th className="p-3 text-right">Action</th>}</tr></thead><tbody className="divide-y divide-slate-100">{filteredSales.slice((salesCurrentPage - 1) * 50, salesCurrentPage * 50).map(s => <tr key={s.id} className="hover:bg-slate-50"><td className="p-3 text-slate-500">{new Date(s.date).toLocaleString()}</td><td className="p-3 font-medium text-slate-800">{s.name}</td><td className="p-3">{s.quantity}</td><td className="p-3 uppercase text-xs font-bold text-slate-500">{s.paymentMethod}</td><td className="p-3 text-slate-500">{s.cashierName}</td><td className="p-3 text-right font-medium text-red-500">{s.discount?.value > 0 ? (s.discount?.type === 'percent' ? `${s.discount.value}%` : `Ksh. ${parseFloat(s.discount.value).toLocaleString()}`) : '-'}</td><td className="p-3 text-right font-bold text-emerald-600">Ksh. {(s.finalPrice).toLocaleString()}</td>{currentUser?.role === 'owner' && (<td className="p-3 text-right"><button onClick={() => onCancelSale(s.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg disabled:text-slate-300 disabled:hover:bg-transparent" title="Cancel Sale" disabled={s.paymentMethod === 'debt'}><Trash2 className="w-4 h-4" /></button></td>)}</tr>)}</tbody></table><Pagination totalItems={filteredSales.length} itemsPerPage={50} currentPage={salesCurrentPage} setCurrentPage={setSalesCurrentPage} /></HistoryModal>)}
         {view === 'stock' && (<HistoryModal title="Stock History" searchVal={stockSearch} onSearchChange={setStockSearch} dateRange={stockDateRange} onDateChange={setStockDateRange} onClose={() => setView('none')} onClear={() => clear('stock')}><table className="w-full text-sm text-left"><thead className="bg-slate-50 text-slate-500 font-medium sticky top-0"><tr><th className="p-3">Date</th><th className="p-3">Product</th><th className="p-3">Added by</th><th className="p-3 text-right">Qty Added</th></tr></thead><tbody className="divide-y divide-slate-100">{filteredStock.slice((stockCurrentPage - 1) * 50, stockCurrentPage * 50).map((s, i) => <tr key={i} className="hover:bg-slate-50"><td className="p-3 text-slate-500">{new Date(s.date).toLocaleString()}</td><td className="p-3 font-medium text-slate-800">{s.name}</td><td className="p-3 text-slate-500">{s.cashierName}</td><td className="p-3 text-right font-bold text-blue-600">+{s.qty}</td></tr>)}</tbody></table><Pagination totalItems={filteredStock.length} itemsPerPage={50} currentPage={stockCurrentPage} setCurrentPage={setStockCurrentPage} /></HistoryModal>)}
         {currentUser?.role === 'owner' && (
-          <div className="mt-8 flex justify-center border-t border-slate-200 pt-6">
+          <div className="mt-8 flex justify-center border-t border-slate-200 pt-6 gap-4">
             <button 
               onClick={() => { setIsPrintingStockForm(true); setTimeout(() => { window.print(); setIsPrintingStockForm(false); }, 200); }} 
               className="flex items-center gap-2 bg-slate-800 hover:bg-slate-900 text-white px-6 py-3 rounded-xl shadow-lg shadow-slate-200 font-bold transition-all transform hover:scale-105"
             >
               <Printer className="w-5 h-5" /> 
               Print Full Inventory Stock Form
+            </button>
+            <button 
+              onClick={() => {
+                const doc = new jsPDF();
+                const itemsPerPage = 20;
+                const rows = [...products];
+                const remainder = rows.length % itemsPerPage;
+                let rowsToAdd = remainder === 0 && rows.length > 0 ? 0 : itemsPerPage - remainder;
+                if (rows.length === 0) rowsToAdd = itemsPerPage;
+                
+                for (let i = 0; i < rowsToAdd; i++) {
+                  rows.push({ name: '', category: '', barcode: '', isBlank: true });
+                }
+
+                const chunks = [];
+                for (let i = 0; i < rows.length; i += itemsPerPage) {
+                  chunks.push(rows.slice(i, i + itemsPerPage));
+                }
+
+                const tableColumn = ["#", "Product Name", "Category", "Barcode", "Cost", "Price", "Physical Stock"];
+
+                chunks.forEach((chunk, chunkIdx) => {
+                  if (chunkIdx > 0) {
+                    doc.addPage();
+                  }
+                  
+                  doc.setFontSize(18);
+                  const title = settings?.name || 'Store';
+                  const titleWidth = doc.getStringUnitWidth(title) * 18 / doc.internal.scaleFactor;
+                  const pageWidth = doc.internal.pageSize.width;
+                  doc.text(title.toUpperCase(), (pageWidth - titleWidth) / 2, 22);
+
+                  doc.setFontSize(14);
+                  const subtitle = `Inventory Checklist (Page ${chunkIdx + 1} / ${chunks.length})`;
+                  const subtitleWidth = doc.getStringUnitWidth(subtitle) * 14 / doc.internal.scaleFactor;
+                  doc.text(subtitle, (pageWidth - subtitleWidth) / 2, 30);
+
+                  doc.setFontSize(10);
+                  const dateText = `Date: ${new Date().toLocaleDateString()}`;
+                  const dateWidth = doc.getStringUnitWidth(dateText) * 10 / doc.internal.scaleFactor;
+                  doc.text(dateText, (pageWidth - dateWidth) / 2, 36);
+
+                  const tableRows = chunk.map((p, i) => {
+                    const absoluteIndex = chunkIdx * itemsPerPage + i + 1;
+                    return [
+                      absoluteIndex,
+                      p.name || '',
+                      p.category || '',
+                      p.barcode || '',
+                      '',
+                      '',
+                      ''
+                    ];
+                  });
+
+                  autoTable(doc, {
+                    startY: 42,
+                    head: [tableColumn],
+                    body: tableRows,
+                    theme: 'grid',
+                    headStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], lineWidth: 0.1, lineColor: [203, 213, 225] },
+                    styles: { fontSize: 10, cellPadding: 3, minCellHeight: 10 },
+                    columnStyles: {
+                      0: { cellWidth: 12, halign: 'center' },
+                      1: { cellWidth: 'auto' },
+                      2: { cellWidth: 30 },
+                      3: { cellWidth: 30 },
+                      4: { cellWidth: 20 },
+                      5: { cellWidth: 20 },
+                      6: { cellWidth: 25 }
+                    }
+                  });
+                });
+
+                doc.save('inventory_stock_form.pdf');
+              }} 
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl shadow-lg shadow-blue-200 font-bold transition-all transform hover:scale-105"
+            >
+              <Download className="w-5 h-5" /> 
+              Download PDF
             </button>
           </div>
         )}
