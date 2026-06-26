@@ -37,7 +37,7 @@ export default async function handler(req, res) {
     const data = {};
     
     // Use transaction/batch for faster reads
-    const stmts = tables.map(t => ({ sql: `SELECT full_json FROM ${t}`, args: [] }));
+    const stmts = tables.map(t => ({ sql: `SELECT * FROM ${t}`, args: [] }));
     const results = await client.batch(stmts, 'read');
 
     results.forEach((result, idx) => {
@@ -51,7 +51,15 @@ export default async function handler(req, res) {
               parsedRows.push(item);
             }
           } catch(e) {}
+        } else {
+          // Fallback if full_json is missing (e.g. manually entered data)
+          const fallback = { ...row };
+          delete fallback.full_json;
+          if (Object.keys(fallback).length > 0) {
+            parsedRows.push(fallback);
+          }
         }
+      }
       }
 
       if (key === 'settings' || key === 'superAdminSettings') {
