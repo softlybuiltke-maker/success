@@ -1,3 +1,4 @@
+      const updateProducts = (newData) => { setProducts(newData); saveDataToDB('products', newData); tursoSync('products', newData); }; const updateCustomers = (newData) => { setCustomers(newData); saveDataToDB('customers', newData); tursoSync('customers', newData); }; const updateDebts = (newData) => { setDebts(newData); saveDataToDB('debts', newData); tursoSync('debts', newData); }; const updatePaidDebts = (newData) => { setPaidDebts(newData); saveDataToDB('paidDebts', newData); tursoSync('paidDebts', newData); }; const updateExpenses = (newData) => { setExpenses(newData); saveDataToDB('expenses', newData); tursoSync('expenses', newData); }; const updateSalesHistory = (newData) => { setSalesHistory(newData); saveDataToDB('salesHistory', newData); tursoSync('salesHistory', newData); const snaps = computeMonthlyAggregates(newData); if (snaps.length > 0) { saveMonthlySnapshots(snaps).then(() => setMonthlySnapshots(snaps)); } }; const updateStockHistory = (newData) => { setStockHistory(newData); saveDataToDB('stockHistory', newData); tursoSync('stockHistory', newData); };
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 // Safe JSON parser to prevent UI crashes
 function safeJSONParse(str, fallback = {}) {
@@ -287,13 +288,20 @@ function safeJSONParse(str, fallback = {}) {
         });
         const result = await res.json();
         
-        if (result.ok && result.data && Object.keys(result.data).length > 0) {
-          // Data found! Save it to local DB
-          for (const [key, value] of Object.entries(result.data)) {
-            const cleanedValue = Array.isArray(value) ? value?.filter(Boolean) : value;
-            await saveDataToDB(key, cleanedValue);
+        if (result.ok && result.data) {
+          let hasRealData = false;
+          for (const val of Object.values(result.data)) {
+            if (Array.isArray(val) && val.length > 0) hasRealData = true;
+            if (!Array.isArray(val) && val !== null && Object.keys(val).length > 0) hasRealData = true;
           }
-          return true; // Indicates we pulled data
+          if (hasRealData) {
+            // Data found! Save it to local DB
+            for (const [key, value] of Object.entries(result.data)) {
+              const cleanedValue = Array.isArray(value) ? value?.filter(Boolean) : value;
+              await saveDataToDB(key, cleanedValue);
+            }
+            return true; // Indicates we pulled data
+          }
         }
         return false; // Turso is empty or failed
       } catch (err) {
@@ -1946,7 +1954,7 @@ const PrintableStockForm = ({ products, settings }) => {
           window.removeEventListener('touchstart', handleAnyAction);
         };
       }, [showAttractMode]);
-      const addProd = () => { if (!form.name || !form.price || !form.stock) return toast.error('Missing fields'); if (form.code && products?.some(p => p.barcode === form.code && (p && p.id) !== editId)) return toast.error('Barcode exists'); const newProd = { id: crypto.randomUUID(), name: form.name, category: form.cat || 'General', price: parseFloat(form.price), cost: parseFloat(form.cost) || 0, stock: parseFloat(form.stock), barcode: form.code, sold: 0, profit: 0, dateAdded: new Date().toISOString(), isCommodity: form.isCommodity, unit: form.isCommodity ? form.unit : undefined, expiryDate: form.expiryDate , cashierName: currentUser?.name || 'Unknown', timestamp: new Date().toISOString()}; setProducts([...products, newProd]); toast.success('Added'); setForm({ name: '', price: '', cost: '', stock: '', cat: '', code: '', isCommodity: false, unit: 'Kg', expiryDate: '' }); };
+      const addProd = () => { if (!form.name || !form.price || !form.stock) return toast.error('Missing fields'); if (form.code && products?.some(p => p.barcode === form.code && (p && p.id) !== editId)) return toast.error('Barcode exists'); const newProd = { id: crypto.randomUUID(), name: form.name, category: form.cat || 'General', price: parseFloat(form.price), cost: parseFloat(form.cost) || 0, stock: parseFloat(form.stock), barcode: form.code, sold: 0, profit: 0, dateAdded: new Date().toISOString(), isCommodity: form.isCommodity, unit: form.isCommodity ? form.unit : undefined, expiryDate: form.expiryDate , cashierName: currentUser?.name || 'Unknown', timestamp: new Date().toISOString()}; updateProducts([...products, newProd]); toast.success('Added'); setForm({ name: '', price: '', cost: '', stock: '', cat: '', code: '', isCommodity: false, unit: 'Kg', expiryDate: '' }); };
 
       const addToCart = (product) => {
         if (product.stock <= 0) { return toast.error(`${product.name} is out of stock.`); }
@@ -1992,8 +2000,8 @@ const PrintableStockForm = ({ products, settings }) => {
       const handleCheckout = (saleDetails) => {
         processSale(saleDetails);
       };
-      function addStock(p, q) { const updated = products?.map(x => x.id === (p && p.id) ? { ...x, stock: x.stock + q } : x); setProducts(updated); setStockHistory([...stockHistory, { name: p.name, qty: q, action: 'Added', barcode: p.barcode, date: new Date().toISOString(), cashierName: currentUser?.name }]); toast.success(`+${q} Stock: ${p.name}`, { duration: 1500 }); };
-      const handleScan = (code) => { const p = products?.find(x => x.barcode === code); if (scannerMode === 'sell') { if (!p) { toast.error('Product not found', { duration: 1500 }); return; } addToCart(p); setScannerMode(null); return; } if (scannerMode === 'stock') { if (!p) { toast.error('Product not found', { duration: 1500 }); return; } setScannerMode(null); const q = prompt(`Add Stock for "${p.name}":`, '1'); if (q !== null) { const n = parseFloat(q); if (!isNaN(n) && n > 0) addStock(p, n); else toast.error('Invalid quantity'); } return; } setScannerMode(null); if (scannerMode === 'fill') { if (editId) setEditData({ ...editData, barcode: code }); else setForm({ ...form, code }); toast.success('Barcode scanned'); } else if (scannerMode === 'update') { if (products?.some(x => x.barcode === code && x.id !== updateId)) { toast.error('Barcode is already taken'); } else { setProducts(products?.map(x => x.id === updateId ? { ...x, barcode: code } : x)); toast.success('Barcode updated'); } setUpdateId(null); } };
+      function addStock(p, q) { const updated = products?.map(x => x.id === (p && p.id) ? { ...x, stock: x.stock + q } : x); updateProducts(updated); updateStockHistory([...stockHistory, { name: p.name, qty: q, action: 'Added', barcode: p.barcode, date: new Date().toISOString(), cashierName: currentUser?.name }]); toast.success(`+${q} Stock: ${p.name}`, { duration: 1500 }); };
+      const handleScan = (code) => { const p = products?.find(x => x.barcode === code); if (scannerMode === 'sell') { if (!p) { toast.error('Product not found', { duration: 1500 }); return; } addToCart(p); setScannerMode(null); return; } if (scannerMode === 'stock') { if (!p) { toast.error('Product not found', { duration: 1500 }); return; } setScannerMode(null); const q = prompt(`Add Stock for "${p.name}":`, '1'); if (q !== null) { const n = parseFloat(q); if (!isNaN(n) && n > 0) addStock(p, n); else toast.error('Invalid quantity'); } return; } setScannerMode(null); if (scannerMode === 'fill') { if (editId) setEditData({ ...editData, barcode: code }); else setForm({ ...form, code }); toast.success('Barcode scanned'); } else if (scannerMode === 'update') { if (products?.some(x => x.barcode === code && x.id !== updateId)) { toast.error('Barcode is already taken'); } else { updateProducts(products?.map(x => x.id === updateId ? { ...x, barcode: code } : x)); toast.success('Barcode updated'); } setUpdateId(null); } };
 
       const cats = useMemo(() => [...new Set(products?.map(p => (p && p.category)))]?.filter(Boolean)?.sort((a, b) => a.localeCompare(b)), [products]);
       const filtered = useMemo(() => {
@@ -2312,8 +2320,8 @@ const PrintableStockForm = ({ products, settings }) => {
           dateAdded: new Date().toISOString().split('T')[0] 
         }; 
 
-        if (debtCart.length > 0) setProducts(tempProducts);
-        setDebts([...(debts || []), d]); 
+        if (debtCart.length > 0) updateProducts(tempProducts);
+        updateDebts([...(debts || []), d]); 
 
         const newSales = [];
         if (debtCart.length > 0) {
@@ -2350,7 +2358,7 @@ const PrintableStockForm = ({ products, settings }) => {
           });
         }
         
-        setSalesHistory([...(salesHistory || []), ...newSales]); 
+        updateSalesHistory([...(salesHistory || []), ...newSales]); 
         setForm({ name: '', phone: '', item: '', amount: '' }); 
         setDebtCart([]);
         toast.success('Debt recorded'); 
@@ -2366,8 +2374,8 @@ const PrintableStockForm = ({ products, settings }) => {
 
       const handleMarkPaid = (d) => {
         if (confirm('Mark Paid?')) { 
-          setPaidDebts([...paidDebts, { ...d, datePaid: new Date().toISOString().split('T')[0] }]); 
-          setDebts(debts?.filter(x => x.id !== d.id)); 
+          updatePaidDebts([...paidDebts, { ...d, datePaid: new Date().toISOString().split('T')[0] }]); 
+          updateDebts(debts?.filter(x => x.id !== d.id)); 
           
           const updatedSales = (salesHistory || [])?.map(s => {
             if (s.id.startsWith('debt_' + d.id)) {
@@ -2375,7 +2383,7 @@ const PrintableStockForm = ({ products, settings }) => {
             }
             return s;
           });
-          setSalesHistory(updatedSales);
+          updateSalesHistory(updatedSales);
           toast.success('Marked Paid'); 
         }
       };
@@ -2455,7 +2463,7 @@ const PrintableStockForm = ({ products, settings }) => {
                           <button onClick={() => remind(d)} className="p-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100" title="WhatsApp Reminder"><MessageCircle className="w-4 h-4" /></button>
                         </>
                       ) : <span className="px-2 py-1 bg-emerald-100 text-emerald-700 text-xs rounded-full font-bold">PAID</span>}
-                      <button onClick={() => { if (confirm('Delete?')) viewHistory ? setPaidDebts(paidDebts?.filter(x => x.id !== d.id)) : setDebts(debts?.filter(x => x.id !== d.id)) }} className="p-2 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>
+                      <button onClick={() => { if (confirm('Delete?')) viewHistory ? updatePaidDebts(paidDebts?.filter(x => x.id !== d.id)) : updateDebts(debts?.filter(x => x.id !== d.id)) }} className="p-2 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>
                     </td>
                   </tr>
                 ))}
@@ -2471,8 +2479,8 @@ const PrintableStockForm = ({ products, settings }) => {
     const ExpensePanel = ({ expenses, setExpenses, currentUser }) => {
       const [desc, setDesc] = useState(''); const [amt, setAmt] = useState('');
       const [currentPage, setCurrentPage] = useState(1);
-      const add = (quickDesc) => { const d = quickDesc || desc; if (!d || !amt) return toast.error('Required fields'); setExpenses([...expenses, { id: crypto.randomUUID(), desc: d, amount: parseFloat(amt), date: new Date().toISOString().split('T')[0], timestamp: new Date().toISOString(), cashierName: currentUser?.name || 'Unknown' }]); setDesc(''); setAmt(''); toast.success('Expense added'); };
-      return (<div className="grid md:grid-cols-3 gap-6"><div className="md:col-span-2 space-y-6"><div><h2 className="text-2xl font-bold text-slate-800">Expenses</h2><p className="text-slate-500">Track shop spending</p></div><div className="card flex flex-col sm:flex-row gap-3 bg-white"><input className="input-field flex-1 w-full min-w-[200px]" placeholder="Description" value={desc} onChange={e => setDesc(e.target.value)} /><input className="input-field w-full sm:w-32" type="number" placeholder="Amount" value={amt} onChange={e => setAmt(e.target.value)} /><button onClick={() => add()} className="btn-primary w-full sm:w-auto px-6">Add</button></div><div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden"><table className="w-full text-left text-sm"><thead className="bg-slate-50 text-slate-500 border-b"><tr><th className="p-4">Description</th><th className="p-4">Amount</th><th className="p-4">Date</th><th className="p-4 text-right">Action</th></tr></thead><tbody className="divide-y divide-slate-100">{expenses.slice((currentPage - 1) * 50, currentPage * 50)?.map(e => (<tr key={e.id}><td className="p-4 text-slate-800">{e.desc}</td><td className="p-4 font-bold text-slate-700">Ksh. {e.amount.toLocaleString()}</td><td className="p-4 text-slate-500">{e.date}</td><td className="p-4 text-right"><button onClick={() => { if (confirm('Delete?')) setExpenses(expenses?.filter(x => x.id !== e.id)) }} className="text-red-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button></td></tr>))}{expenses.length === 0 && <tr><td colSpan={4} className="p-8 text-center text-slate-400">No expenses recorded.</td></tr>}</tbody></table><Pagination totalItems={expenses.length} itemsPerPage={50} currentPage={currentPage} setCurrentPage={setCurrentPage} /></div></div><div className="bg-slate-100 rounded-xl p-5 h-fit"><h3 className="font-bold mb-4 flex gap-2 items-center text-slate-700"><Zap className="w-4 h-4 text-amber-500" /> Quick Add</h3><div className="grid grid-cols-2 gap-2">{['Transport', 'Lunch', 'Airtime', 'Packaging']?.map(o => <button key={o} onClick={() => { setDesc(o); document.querySelector('input[placeholder="Amount"]').focus() }} className="p-3 bg-white rounded-lg shadow-sm text-sm text-slate-600 hover:text-emerald-600 font-medium transition-colors">{o}</button>)}</div></div></div>);
+      const add = (quickDesc) => { const d = quickDesc || desc; if (!d || !amt) return toast.error('Required fields'); updateExpenses([...expenses, { id: crypto.randomUUID(), desc: d, amount: parseFloat(amt), date: new Date().toISOString().split('T')[0], timestamp: new Date().toISOString(), cashierName: currentUser?.name || 'Unknown' }]); setDesc(''); setAmt(''); toast.success('Expense added'); };
+      return (<div className="grid md:grid-cols-3 gap-6"><div className="md:col-span-2 space-y-6"><div><h2 className="text-2xl font-bold text-slate-800">Expenses</h2><p className="text-slate-500">Track shop spending</p></div><div className="card flex flex-col sm:flex-row gap-3 bg-white"><input className="input-field flex-1 w-full min-w-[200px]" placeholder="Description" value={desc} onChange={e => setDesc(e.target.value)} /><input className="input-field w-full sm:w-32" type="number" placeholder="Amount" value={amt} onChange={e => setAmt(e.target.value)} /><button onClick={() => add()} className="btn-primary w-full sm:w-auto px-6">Add</button></div><div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden"><table className="w-full text-left text-sm"><thead className="bg-slate-50 text-slate-500 border-b"><tr><th className="p-4">Description</th><th className="p-4">Amount</th><th className="p-4">Date</th><th className="p-4 text-right">Action</th></tr></thead><tbody className="divide-y divide-slate-100">{expenses.slice((currentPage - 1) * 50, currentPage * 50)?.map(e => (<tr key={e.id}><td className="p-4 text-slate-800">{e.desc}</td><td className="p-4 font-bold text-slate-700">Ksh. {e.amount.toLocaleString()}</td><td className="p-4 text-slate-500">{e.date}</td><td className="p-4 text-right"><button onClick={() => { if (confirm('Delete?')) updateExpenses(expenses?.filter(x => x.id !== e.id)) }} className="text-red-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button></td></tr>))}{expenses.length === 0 && <tr><td colSpan={4} className="p-8 text-center text-slate-400">No expenses recorded.</td></tr>}</tbody></table><Pagination totalItems={expenses.length} itemsPerPage={50} currentPage={currentPage} setCurrentPage={setCurrentPage} /></div></div><div className="bg-slate-100 rounded-xl p-5 h-fit"><h3 className="font-bold mb-4 flex gap-2 items-center text-slate-700"><Zap className="w-4 h-4 text-amber-500" /> Quick Add</h3><div className="grid grid-cols-2 gap-2">{['Transport', 'Lunch', 'Airtime', 'Packaging']?.map(o => <button key={o} onClick={() => { setDesc(o); document.querySelector('input[placeholder="Amount"]').focus() }} className="p-3 bg-white rounded-lg shadow-sm text-sm text-slate-600 hover:text-emerald-600 font-medium transition-colors">{o}</button>)}</div></div></div>);
     };
 
     const CustomerPanel = ({ customers, setCustomers, currentUser }) => {
@@ -2486,13 +2494,13 @@ const PrintableStockForm = ({ products, settings }) => {
       const handleSave = () => {
         if (!form.name || !form.phone) return toast.error("Name and Phone are required.");
         if (editingId) {
-          setCustomers(customers?.map(c => c.id === editingId ? { ...c, ...form } : c));
+          updateCustomers(customers?.map(c => c.id === editingId ? { ...c, ...form } : c));
           toast.success("Customer updated.");
         } else {
           if (customers?.some(c => c.phone === form.phone)) {
             return toast.error("A customer with this phone number already exists.");
           }
-          setCustomers([...customers, { ...form, id: crypto.randomUUID() }]);
+          updateCustomers([...customers, { ...form, id: crypto.randomUUID() }]);
           toast.success("Customer added.");
         }
         setForm({ name: '', phone: '' });
@@ -2506,7 +2514,7 @@ const PrintableStockForm = ({ products, settings }) => {
 
       const handleDelete = (id) => {
         if (confirm("Are you sure you want to delete this customer?")) {
-          setCustomers(customers?.filter(c => c.id !== id));
+          updateCustomers(customers?.filter(c => c.id !== id));
           toast.success("Customer deleted.");
         }
       };
@@ -2596,7 +2604,7 @@ const PrintableStockForm = ({ products, settings }) => {
       const salesByProduct = [...salesHistory]?.reduce((acc, sale) => { if (sale.paymentMethod !== 'debt') { acc[sale.name] = (acc[sale.name] || 0) + sale.quantity; } return acc; }, {});
       const productChartData = Object.keys(salesByProduct)?.map(name => ({ name, quantity: salesByProduct[name] }))?.sort((a, b) => b.quantity - a.quantity);
 
-      const clear = (type) => { if (confirm(`Clear all ${type} history? This cannot be undone.`)) { if (type === 'sales') setSalesHistory([]); if (type === 'stock') setStockHistory([]); toast.success('Cleared'); } };
+      const clear = (type) => { if (confirm(`Clear all ${type} history? This cannot be undone.`)) { if (type === 'sales') updateSalesHistory([]); if (type === 'stock') updateStockHistory([]); toast.success('Cleared'); } };
 
       const filterByDate = (items, dateRange) => {
         if (!dateRange.start && !dateRange.end) return items;
@@ -4649,7 +4657,6 @@ id,name,qty,barcode,date,cashierName
       const markNotifRead = (id) => setReadNotifs(prev => ({ ...prev, [id]: Date.now() }));
       const markAllNotifRead = () => { const m = { ...readNotifs }; const now = Date.now(); notifications?.forEach(n => { m[n.id] = now; }); setReadNotifs(m); };
       
-      const updateProducts = (newData) => { setProducts(newData); saveDataToDB('products', newData); tursoSync('products', newData); }; const updateCustomers = (newData) => { setCustomers(newData); saveDataToDB('customers', newData); tursoSync('customers', newData); }; const updateDebts = (newData) => { setDebts(newData); saveDataToDB('debts', newData); tursoSync('debts', newData); }; const updatePaidDebts = (newData) => { setPaidDebts(newData); saveDataToDB('paidDebts', newData); tursoSync('paidDebts', newData); }; const updateExpenses = (newData) => { setExpenses(newData); saveDataToDB('expenses', newData); tursoSync('expenses', newData); }; const updateSalesHistory = (newData) => { setSalesHistory(newData); saveDataToDB('salesHistory', newData); tursoSync('salesHistory', newData); const snaps = computeMonthlyAggregates(newData); if (snaps.length > 0) { saveMonthlySnapshots(snaps).then(() => setMonthlySnapshots(snaps)); } }; const updateStockHistory = (newData) => { setStockHistory(newData); saveDataToDB('stockHistory', newData); tursoSync('stockHistory', newData); };
 
       useEffect(() => { const loadAllData = async () => { const loadedProducts = (await loadDataFromDB('products') || [])?.filter(Boolean); const loadedCustomers = (await loadDataFromDB('customers') || [])?.filter(Boolean); const loadedDebts = (await loadDataFromDB('debts') || [])?.filter(Boolean); const loadedPaidDebts = (await loadDataFromDB('paidDebts') || [])?.filter(Boolean); const loadedExpenses = (await loadDataFromDB('expenses') || [])?.filter(Boolean); const loadedSales = (await loadDataFromDB('salesHistory') || [])?.filter(Boolean); const loadedStock = (await loadDataFromDB('stockHistory') || [])?.filter(Boolean); const loadedSnaps = (await loadMonthlySnapshots() || [])?.filter(Boolean); setProducts(loadedProducts); setCustomers(loadedCustomers); setDebts(loadedDebts); setPaidDebts(loadedPaidDebts); setExpenses(loadedExpenses); setSalesHistory(loadedSales); setStockHistory(loadedStock); setMonthlySnapshots(loadedSnaps); }; loadAllData(); }, []);
 
