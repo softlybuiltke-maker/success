@@ -711,8 +711,8 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
               <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Lock className="w-8 h-8 text-red-600" />
               </div>
-              <h2 className="text-2xl font-bold mb-2 text-slate-800">Subscription Expired</h2>
-              <p className="text-sm text-slate-500 mb-8">Enter your Activation Code to renew your subscription.</p>
+              <h2 className="text-2xl font-bold mb-2 text-slate-800">System Locked</h2>
+              <p className="text-sm text-slate-500 mb-8">We hope you've enjoyed using Softly Built. To continue accessing the system, please enter your valid unlock token. For assistance, kindly contact your administrator.</p>
               
               <input 
                 type="text" 
