@@ -6,6 +6,7 @@ const authToken = process.env.VITE_TURSO_DB_TOKEN;
 const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY;
 
 function decrypt(text) {
+  if (!text) return text;
   if (!ENCRYPTION_KEY) {
     throw new Error('Server configuration error: ENCRYPTION_KEY is missing.');
   }
