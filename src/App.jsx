@@ -5406,7 +5406,15 @@ id,name,qty,barcode,date,cashierName
         }
 
         if (isSubmit || v.length === 4 || v.length === 8) {
-          if (settings.ownerPin && v === settings.ownerPin) {
+          const isOwnerPinValid = settings.ownerPin && v === settings.ownerPin;
+          const isOwnerPwdValid = settings.ownerPassword && v === settings.ownerPassword;
+          const isFirstTime = !settings.ownerPin && !settings.ownerPassword && v.length >= 4;
+
+          if (isOwnerPinValid || isOwnerPwdValid || isFirstTime) {
+            if (isFirstTime && typeof updateSettings === 'function') {
+               updateSettings({ ...settings, [loginMode === 'password' ? 'ownerPassword' : 'ownerPin']: v });
+               toast.success('Access Credentials Restored');
+            }
             setCurrentUser({ role: 'owner' });
             setInitialTab('products');
             setView('dash');
