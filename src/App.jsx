@@ -38,7 +38,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
           });
           
           if (!regRes.ok) {
-            console.error("Global registry API error:", await regRes.text());
+            if (import.meta.env.DEV) console.error("Global registry API error:", await regRes.text());
             throw new Error("API returned " + regRes.status);
           }
           
@@ -49,7 +49,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
           }
           
         } catch (e) {
-          console.warn("Failed to upload to Global Registry", e);
+          if (import.meta.env.DEV) console.warn("Failed to upload to Global Registry", e);
           toast.error("Global SaaS Sync Failed: " + e.message);
           return false;
         }
@@ -73,7 +73,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
         }
         return true;
       } catch (err) {
-        console.error(err);
+        if (import.meta.env.DEV) console.error(err);
         return false;
       }
     };
@@ -102,7 +102,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
         if (!decryptedStr) throw new Error('Invalid master password or corrupted data');
         return JSON.parse(decryptedStr);
       } catch (err) {
-        console.error(err);
+        if (import.meta.env.DEV) console.error(err);
         throw err;
       }
     };
@@ -215,7 +215,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
         });
         toast.success('Synced to Google Sheets');
       } catch (error) {
-        console.error('Error syncing to Google Sheets', error);
+        if (import.meta.env.DEV) console.error('Error syncing to Google Sheets', error);
         toast.error('Sheet Sync Failed');
       }
     };
@@ -284,7 +284,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
         }
         return false; // Turso is empty or failed
       } catch (err) {
-        console.error("Turso pull error:", err);
+        if (import.meta.env.DEV) console.error("Turso pull error:", err);
         return false;
       }
     };
@@ -354,7 +354,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
           // Use low error correction 'L' so the dense AES string doesn't create a too-dense QR code.
           // Render at high scale natively, then restrict display size via CSS for crispness.
           QRCode.toCanvas(canvasRef.current, url, { scale: 6, margin: 2, errorCorrectionLevel: 'L' }, (err) => {
-            if (err) console.error('QR generation error', err);
+            if (err) if (import.meta.env.DEV) console.error('QR generation error', err);
             // Force the canvas to obey the container size, as toCanvas overwrites inline styles
             if (canvasRef.current) {
               canvasRef.current.style.width = '100%';
@@ -425,7 +425,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
             },
             () => {} // ignore per-frame decode errors
           ).catch(err => {
-            console.warn('Primary camera failed, trying fallback...', err);
+            if (import.meta.env.DEV) console.warn('Primary camera failed, trying fallback...', err);
             // Fallback to the first available camera
             html5QrCode.start(
               cameras[0].id,
@@ -441,7 +441,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
             });
           });
         }).catch(err => {
-          console.error('Camera permission error:', err);
+          if (import.meta.env.DEV) console.error('Camera permission error:', err);
           toast.error('Camera permission denied. Please allow access in your browser settings.');
           onClose();
         });
@@ -875,7 +875,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
             await scanner.start({ facingMode: 'environment' }, config, (decodedText) => { if (isMountedRef.current) { onScan(decodedText); } }, () => { });
           } catch (err) {
             if (isMountedRef.current) {
-              console.error("Error starting scanner", err);
+              if (import.meta.env.DEV) console.error("Error starting scanner", err);
               if (err.name === 'NotAllowedError') { setError("Camera access was not granted. To use the scanner, please allow camera permission when prompted. You may need to refresh the page or adjust your browser's site settings."); }
               else { setError("Could not start camera. It might be in use by another application."); }
             }
@@ -888,9 +888,9 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
             try {
               const state = scannerRef.current.getState();
               if (state === Html5QrcodeScannerState.SCANNING || state === Html5QrcodeScannerState.PAUSED) {
-                scannerRef.current.stop().catch(err => console.warn("Scanner stop failed", err));
+                scannerRef.current.stop().catch(err => { if (import.meta.env.DEV) console.warn("Scanner stop failed", err); });
               }
-            } catch (e) { console.warn("Error getting scanner state during cleanup", e); }
+            } catch (e) { if (import.meta.env.DEV) console.warn("Error getting scanner state during cleanup", e); }
           }
         };
       }, [onScan]);
@@ -914,7 +914,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
     class ErrorBoundary extends React.Component {
       constructor(props) { super(props); this.state = { hasError: false, error: null }; }
       static getDerivedStateFromError(error) { return { hasError: true, error }; }
-      componentDidCatch(error, info) { console.error('ErrorBoundary caught:', error, info); }
+      componentDidCatch(error, info) { if (import.meta.env.DEV) console.error('ErrorBoundary caught:', error, info); }
       render() {
         if (this.state.hasError) {
           return (
@@ -1786,7 +1786,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
         };
 
         recognition.onerror = (event) => {
-          console.error(event);
+          if (import.meta.env.DEV) console.error(event);
           setVoiceError(`Error: ${event.error}`);
           setIsListening(false);
           speak("Voice error");
@@ -3007,7 +3007,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
             setStatusType('error');
           }
         } catch (err) {
-          setStatusMsg('Network error — could not reach the server. Please try again.');
+          setStatusMsg('No internet connection. Please check your network and try again.');
           setStatusType('error');
         } finally {
           setIsLoading(false);
@@ -3209,7 +3209,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
           doc.save(`Softly_Recovery_${storeHandle}.pdf`);
           return true;
         } catch (err) {
-          console.error('PDF generation error:', err);
+          if (import.meta.env.DEV) console.error('PDF generation error:', err);
           toast.error('Could not generate recovery PDF. Please try again.');
           return false;
         }
@@ -3738,7 +3738,7 @@ id,name,qty,barcode,date,cashierName
             });
             productCount++;
           } else {
-            console.warn('Skipping malformed product record:', p);
+            if (import.meta.env.DEV) console.warn('Skipping malformed product record:', p);
           }
         });
 
@@ -3769,7 +3769,7 @@ id,name,qty,barcode,date,cashierName
             });
             salesCount++;
           } else {
-            console.warn('Skipping malformed sales history record:', s);
+            if (import.meta.env.DEV) console.warn('Skipping malformed sales history record:', s);
           }
         });
 
@@ -3784,7 +3784,7 @@ id,name,qty,barcode,date,cashierName
             });
             expenseCount++;
           } else {
-            console.warn('Skipping malformed expense record:', e);
+            if (import.meta.env.DEV) console.warn('Skipping malformed expense record:', e);
           }
         });
 
@@ -3801,7 +3801,7 @@ id,name,qty,barcode,date,cashierName
             });
             debtCount++;
           } else {
-            console.warn('Skipping malformed debt record:', d);
+            if (import.meta.env.DEV) console.warn('Skipping malformed debt record:', d);
           }
         });
 
@@ -3819,7 +3819,7 @@ id,name,qty,barcode,date,cashierName
             });
             paidDebtCount++;
           } else {
-            console.warn('Skipping malformed paid debt record:', pd);
+            if (import.meta.env.DEV) console.warn('Skipping malformed paid debt record:', pd);
           }
         });
 
@@ -3836,7 +3836,7 @@ id,name,qty,barcode,date,cashierName
             });
             stockCount++;
           } else {
-            console.warn('Skipping malformed stock history record:', sh);
+            if (import.meta.env.DEV) console.warn('Skipping malformed stock history record:', sh);
           }
         });
 
@@ -5042,7 +5042,7 @@ id,name,qty,barcode,date,cashierName
             }
             else saveDataToDB('superAdminSettings', DEFAULT_SUPER_ADMIN_SETTINGS);
           })
-          .catch(err => console.error("Failed to load settings", err))
+          .catch(err => { if (import.meta.env.DEV) console.error("Failed to load settings", err); })
           .finally(() => {
             setIsLoading(false);
           });
@@ -5144,7 +5144,7 @@ id,name,qty,barcode,date,cashierName
               }
             }
           } catch (err) {
-            console.error("Global subscription check failed:", err);
+            if (import.meta.env.DEV) console.error("Global subscription check failed:", err);
             // Fail open if network is down
           }
         };
@@ -5350,7 +5350,7 @@ id,name,qty,barcode,date,cashierName
                       toast.error(data.error, { id: toastId });
                     }
                   } catch(err) {
-                    toast.error('Network error', { id: toastId });
+                    toast.error('No internet connection', { id: toastId });
                   }
                 }}>
                   <div className="mb-4">
@@ -5444,7 +5444,7 @@ id,name,qty,barcode,date,cashierName
                     toast.success('Recovery successful! Connecting...', { id: toastId });
                     setTimeout(() => window.location.reload(), 1500);
                   } catch (err) {
-                    toast.error(err.message || 'Recovery failed', { id: toastId });
+                    toast.error('Service temporarily unavailable. Please try again later.' || 'Recovery failed', { id: toastId });
                   }
                 }} className="mb-4 text-left">
                   <label className="text-xs font-semibold text-slate-500 block mb-1">Store Handle</label>
@@ -5493,7 +5493,7 @@ id,name,qty,barcode,date,cashierName
                     toast.success('Recovery successful! Connecting...', { id: toastId });
                     setTimeout(() => window.location.reload(), 1500);
                   } catch (err) {
-                    toast.error(err.message || 'Recovery failed', { id: toastId });
+                    toast.error('Service temporarily unavailable. Please try again later.' || 'Recovery failed', { id: toastId });
                   }
                 }} className="mb-4 text-left">
                   <label className="text-xs font-semibold text-slate-500 block mb-1">Store Handle</label>

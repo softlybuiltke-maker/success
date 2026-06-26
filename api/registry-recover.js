@@ -1,7 +1,20 @@
 import { createClient } from '@libsql/client/web';
 
-const url = "libsql://success-success.aws-ap-northeast-1.turso.io";
-const authToken = "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3ODI0MTM5MzksImlkIjoiMDE5ZjAwMjYtMWUwMS03NTYxLTg3YWMtZmNmMmM5Yzk1OTc3IiwicmlkIjoiMjQ2YmYzNjctMDZhMi00MzVlLTg2OTctZjAxMTQ5N2Q2ZjA0In0.PSSMjdrQZjrZVqotZPRBUl5_8J_ZJp2mNatNrwyJXrr0ONKoyBZhLBbhq8tdhxEQJef-oteujwTzlJyAa_BnCg";
+const url = process.env.VITE_TURSO_DB_URL;
+const authToken = process.env.VITE_TURSO_DB_TOKEN;
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY;
+
+function decrypt(text) {
+  if (!ENCRYPTION_KEY || !text.includes(':')) return text; // fallback if not encrypted
+  const crypto = require('crypto');
+  const textParts = text.split(':');
+  const iv = Buffer.from(textParts.shift(), 'hex');
+  const encryptedText = Buffer.from(textParts.join(':'), 'hex');
+  const decipher = crypto.createDecipheriv('aes-256-cbc', Buffer.from(ENCRYPTION_KEY.padEnd(32, '0').slice(0, 32)), iv);
+  let decrypted = decipher.update(encryptedText);
+  decrypted = Buffer.concat([decrypted, decipher.final()]);
+  return decrypted.toString();
+}
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -10,6 +23,10 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'Method not allowed' });
 
+  if (!url || !authToken) {
+    return res.status(500).json({ ok: false, error: 'Database configuration is missing' });
+  }
+
   const { handle, code } = req.body || {};
   if (!handle || !code) {
     return res.status(400).json({ ok: false, error: 'Missing handle or recovery code' });
@@ -17,7 +34,7 @@ export default async function handler(req, res) {
 
   let client;
   try {
-    const httpUrl = url.replace(/^libsql:\/\//, 'https://');
+    const httpUrl = url.trim().replace(/^libsql:\/\//, 'https://');
     client = createClient({ url: httpUrl, authToken });
 
     // 1. Check if the recovery code is valid
@@ -49,7 +66,8 @@ export default async function handler(req, res) {
       return res.status(404).json({ ok: false, error: 'Store handle not found in global registry' });
     }
 
-    const { db_url, db_token } = userRes.rows[0];
+    const db_url = decrypt(userRes.rows[0].db_url);
+    const db_token = decrypt(userRes.rows[0].db_token);
 
     // 3. Mark recovery code as used
     await client.execute({
@@ -66,7 +84,7 @@ export default async function handler(req, res) {
 
   } catch (err) {
     console.error("Recovery error:", err);
-    res.status(500).json({ ok: false, error: err.message });
+    res.status(500).json({ ok: false, error: 'Service temporarily unavailable. Please try again later.' });
   } finally {
     if (client) client.close();
   }

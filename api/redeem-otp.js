@@ -1,7 +1,7 @@
 import { createClient } from '@libsql/client/web';
 
-const url = "libsql://success-success.aws-ap-northeast-1.turso.io";
-const authToken = "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3ODI0MTM5MzksImlkIjoiMDE5ZjAwMjYtMWUwMS03NTYxLTg3YWMtZmNmMmM5Yzk1OTc3IiwicmlkIjoiMjQ2YmYzNjctMDZhMi00MzVlLTg2OTctZjAxMTQ5N2Q2ZjA0In0.PSSMjdrQZjrZVqotZPRBUl5_8J_ZJp2mNatNrwyJXrr0ONKoyBZhLBbhq8tdhxEQJef-oteujwTzlJyAa_BnCg";
+const url = process.env.VITE_TURSO_DB_URL;
+const authToken = process.env.VITE_TURSO_DB_TOKEN;
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -10,6 +10,10 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'Method not allowed' });
 
+  if (!url || !authToken) {
+    return res.status(500).json({ ok: false, error: 'Database configuration is missing' });
+  }
+
   const { handle, code } = req.body || {};
   if (!handle || !code) {
     return res.status(400).json({ ok: false, error: 'Missing fields' });
@@ -17,7 +21,7 @@ export default async function handler(req, res) {
 
   let client;
   try {
-    const httpUrl = url.replace(/^libsql:\/\//, 'https://');
+    const httpUrl = url.trim().replace(/^libsql:\/\//, 'https://');
     client = createClient({ url: httpUrl, authToken });
 
     // 1. Check if the OTP is valid and unused
@@ -75,7 +79,7 @@ export default async function handler(req, res) {
     res.status(200).json({ ok: true, message: 'Subscription activated!', valid_until: newValidUntilIso, added_days: otp.days_value });
   } catch (err) {
     console.error("OTP redeem error:", err);
-    res.status(500).json({ ok: false, error: err.message });
+    res.status(500).json({ ok: false, error: 'Service temporarily unavailable. Please try again later.' });
   } finally {
     if (client) client.close();
   }

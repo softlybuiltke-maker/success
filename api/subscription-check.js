@@ -1,7 +1,7 @@
 import { createClient } from '@libsql/client/web';
 
-const url = "libsql://success-success.aws-ap-northeast-1.turso.io";
-const authToken = "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3ODI0MTM5MzksImlkIjoiMDE5ZjAwMjYtMWUwMS03NTYxLTg3YWMtZmNmMmM5Yzk1OTc3IiwicmlkIjoiMjQ2YmYzNjctMDZhMi00MzVlLTg2OTctZjAxMTQ5N2Q2ZjA0In0.PSSMjdrQZjrZVqotZPRBUl5_8J_ZJp2mNatNrwyJXrr0ONKoyBZhLBbhq8tdhxEQJef-oteujwTzlJyAa_BnCg";
+const url = process.env.VITE_TURSO_DB_URL;
+const authToken = process.env.VITE_TURSO_DB_TOKEN;
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -13,23 +13,25 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'GET') return res.status(405).json({ ok: false, error: 'Method not allowed' });
 
-  const { handle, dbUrl } = req.query || {};
-  if (!handle && !dbUrl) {
-    return res.status(400).json({ ok: false, error: 'Missing handle or dbUrl' });
+  if (!url || !authToken) {
+    return res.status(500).json({ ok: false, error: 'Database configuration is missing' });
+  }
+
+  const { handle } = req.query;
+
+  if (!handle) {
+    return res.status(400).json({ ok: false, error: 'Handle is required' });
   }
 
   let client;
   try {
-    const httpUrl = url.replace(/^libsql:\/\//, 'https://');
+    const httpUrl = url.trim().replace(/^libsql:\/\//, 'https://');
     client = createClient({ url: httpUrl, authToken });
 
     let sql, args;
     if (handle) {
       sql = `SELECT valid_until, is_blocked FROM users WHERE LOWER(handle) = LOWER(?)`;
       args = [handle];
-    } else if (dbUrl) {
-      sql = `SELECT valid_until, is_blocked FROM users WHERE db_url = ?`;
-      args = [dbUrl];
     }
 
     const result = await client.execute({ sql, args });
@@ -46,7 +48,7 @@ export default async function handler(req, res) {
     });
   } catch (err) {
     console.error("Subscription check error:", err);
-    res.status(500).json({ ok: false, error: err.message });
+    res.status(500).json({ ok: false, error: 'Service temporarily unavailable. Please try again later.' });
   } finally {
     if (client) client.close();
   }
