@@ -1,6 +1,6 @@
-const { createClient } = require('@libsql/client');
+import { createClient } from '@libsql/client/web';
 
-module.exports = async (req, res) => {
+export default async function handler(req, res) {
   // Add CORS headers
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
