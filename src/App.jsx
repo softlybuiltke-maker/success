@@ -237,7 +237,7 @@ function safeJSONParse(str, fallback = {}) {
       try {
         const raw = localStorage.getItem('db_session');
         if (!raw) return; // Not connected — skip silently
-        const {} = safeJSONParse() || {};
+        const { url, token } = safeJSONParse(raw) || {};
         if (!url || !token) return;
         const r = await fetch('/api/sync', {
           method: 'POST',
@@ -275,7 +275,7 @@ function safeJSONParse(str, fallback = {}) {
       try {
         const raw = localStorage.getItem('db_session');
         if (!raw) return false;
-        const {} = safeJSONParse() || {};
+        const { url, token } = safeJSONParse(raw) || {};
         if (!url || !token) return false;
         
         const res = await fetch('/api/pull', {
@@ -3480,7 +3480,7 @@ const PrintableStockForm = ({ products, settings }) => {
       const generateCashierQR = (cashier) => {
         const raw = localStorage.getItem('db_session');
         if (!raw) return toast.error('No database connection active.');
-        const {} = safeJSONParse() || {};
+        const { url, token } = safeJSONParse(raw) || {};
         
         const payload = {
           url,
