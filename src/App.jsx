@@ -1,4 +1,15 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+// Safe JSON parser to prevent UI crashes
+function safeJSONParse(str, fallback = null) {
+  if (!str) return fallback;
+  try {
+    return safeJSONParse(str);
+  } catch (e) {
+    console.error('JSON parse error:', e);
+    return fallback;
+  }
+}
+
     import { createPortal } from 'react-dom';
     import {
       ShoppingBag, TrendingUp, TrendingDown, Users, ArrowRight, CheckCircle,
@@ -100,7 +111,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
         const bytes = CryptoJS.AES.decrypt(ciphertext, masterPassword);
         const decryptedStr = bytes.toString(CryptoJS.enc.Utf8);
         if (!decryptedStr) throw new Error('Invalid master password or corrupted data');
-        return JSON.parse(decryptedStr);
+        return safeJSONParse(decryptedStr);
       } catch (err) {
         if (import.meta.env.DEV) console.error(err);
         throw err;
@@ -226,7 +237,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
       try {
         const raw = localStorage.getItem('db_session');
         if (!raw) return; // Not connected — skip silently
-        const { url, token } = JSON.parse(raw);
+        const { url, token } = safeJSONParse(raw);
         if (!url || !token) return;
         const r = await fetch('/api/sync', {
           method: 'POST',
@@ -264,7 +275,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
       try {
         const raw = localStorage.getItem('db_session');
         if (!raw) return false;
-        const { url, token } = JSON.parse(raw);
+        const { url, token } = safeJSONParse(raw);
         if (!url || !token) return false;
         
         const res = await fetch('/api/pull', {
@@ -277,7 +288,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
         if (result.ok && result.data && Object.keys(result.data).length > 0) {
           // Data found! Save it to local DB
           for (const [key, value] of Object.entries(result.data)) {
-            const cleanedValue = Array.isArray(value) ? value.filter(Boolean) : value;
+            const cleanedValue = Array.isArray(value) ? value?.filter(Boolean) : value;
             await saveDataToDB(key, cleanedValue);
           }
           return true; // Indicates we pulled data
@@ -303,7 +314,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
       if (Array.isArray(settings.cashiers)) return settings.cashiers;
       if (typeof settings.cashiers === 'string') {
         try {
-          const parsed = JSON.parse(settings.cashiers);
+          const parsed = safeJSONParse(settings.cashiers);
           if (Array.isArray(parsed)) return parsed;
         } catch (e) {}
       }
@@ -515,7 +526,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
             <span style={{ textAlign: 'right' }}>Total</span>
           </div>
           {hr}
-          {cart.map((item, index) => (
+          {cart?.map((item, index) => (
             <div key={index} style={{ display: 'grid', gridTemplateColumns: '3fr 1fr 1fr 1fr', gap: '4px' }}>
               <span>{item.name}</span>
               <span style={{ textAlign: 'right' }}>{item.quantity}</span>
@@ -584,7 +595,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
         if (customer && customer.name) text += `Customer: ${customer.name}\n`;
         text += hr;
 
-        cart.forEach(item => {
+        cart?.forEach(item => {
           text += `${item.name}\n`;
           text += `  ${item.quantity} x ${(Number() || 0).toFixed(2)} = ${(Number(item.price * item.quantity) || 0).toFixed(2)}\n`;
         });
@@ -743,10 +754,10 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
             <h2 className="text-2xl font-bold mb-2 text-slate-800">System Locked</h2>
             <p className="text-sm text-slate-500 mb-8">Enter PIN to unlock</p>
             <div className="flex justify-center gap-3 mb-8 h-3">
-              {Array.from({ length: Math.max(4, pin.length) }).map((_, i) => <div key={i} className={`w-3 h-3 rounded-full transition-all ${pin.length > i ? 'bg-red-600 scale-125' : 'bg-slate-200'}`}></div>)}
+              {Array.from({ length: Math.max(4, pin.length) })?.map((_, i) => <div key={i} className={`w-3 h-3 rounded-full transition-all ${pin.length > i ? 'bg-red-600 scale-125' : 'bg-slate-200'}`}></div>)}
             </div>
             <div className="grid grid-cols-3 gap-4">
-              {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => <button key={n} onClick={() => checkLockPin(pin + n)} className="p-4 bg-slate-50 rounded-xl font-bold text-xl text-slate-700 hover:bg-red-50 hover:text-red-700 hover:shadow-md transition-all border border-slate-100">{n}</button>)}
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9]?.map(n => <button key={n} onClick={() => checkLockPin(pin + n)} className="p-4 bg-slate-50 rounded-xl font-bold text-xl text-slate-700 hover:bg-red-50 hover:text-red-700 hover:shadow-md transition-all border border-slate-100">{n}</button>)}
               <div />
               <button onClick={() => checkLockPin(pin + '0')} className="p-4 bg-slate-50 rounded-xl font-bold text-xl text-slate-700 hover:bg-red-50 hover:text-red-700 hover:shadow-md transition-all border border-slate-100">0</button>
               <button onClick={() => setPin(pin.slice(0, -1))} className="p-4 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"><Delete className="w-6 h-6" /></button>
@@ -979,7 +990,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
       return (<div ref={dragRef} className="fixed bottom-20 right-4 z-50 bg-slate-800 rounded-2xl p-4 shadow-2xl w-64 border border-slate-700 cursor-move" style={{ touchAction: 'none' }}>
         <div className="flex justify-between mb-3 text-slate-400"><span className="text-xs font-bold uppercase">Calculator</span><button onClick={onClose}><X className="w-4 h-4" /></button></div>
         <div className="bg-slate-900 p-3 rounded-lg mb-4 text-right"><span className="text-emerald-400 text-2xl font-mono">{disp}</span></div>
-        <div className="grid grid-cols-4 gap-2">{['7', '8', '9', '/', '4', '5', '6', '*', '1', '2', '3', '-', 'C', '0', '.', '+'].map(b => (<button key={b} onClick={() => press(b)} className={`p-3 rounded-lg font-bold text-sm ${['/', '*', '-', '+', '='].includes(b) ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'bg-slate-700 text-slate-200 hover:bg-slate-600'} ${b === 'C' ? 'bg-red-500 text-white' : ''}`}>{b}</button>))}
+        <div className="grid grid-cols-4 gap-2">{['7', '8', '9', '/', '4', '5', '6', '*', '1', '2', '3', '-', 'C', '0', '.', '+']?.map(b => (<button key={b} onClick={() => press(b)} className={`p-3 rounded-lg font-bold text-sm ${['/', '*', '-', '+', '='].includes(b) ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'bg-slate-700 text-slate-200 hover:bg-slate-600'} ${b === 'C' ? 'bg-red-500 text-white' : ''}`}>{b}</button>))}
           <button onClick={() => press('=')} className="col-span-4 bg-emerald-600 text-white py-2 rounded-lg font-bold mt-1 hover:bg-emerald-700">=</button>
           <button onClick={() => { navigator.clipboard.writeText(disp); toast.success('Copied') }} className="col-span-4 text-xs text-slate-400 hover:text-white flex items-center justify-center gap-1 mt-1"><Copy className="w-3 h-3" /> Copy</button>
         </div></div>);
@@ -989,30 +1000,30 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
     const TextImportModal = ({ onClose, onImport, existingProducts, settings }) => { const trackExp = settings?.trackExpiry !== false;
       const [text, setText] = useState(''); const [items, setItems] = useState([]); const [step, setStep] = useState('input'); const [scanIdx, setScanIdx] = useState(null); const [isScanningStock, setIsScanningStock] = useState(false);
       const parse = () => {
-        if (!text.trim()) return toast.error('Paste text first'); const lines = text.split('\n').filter(l => l.trim().length);
-        const parsed = lines.map(line => {
-          const parts = line.split(',').map(p => p.trim()); if (parts.length < 6) return { status: 'error', msg: 'Invalid format', name: line, code: '?', price: 0, category: 'Unknown', cost: 0, stock: 0 };
+        if (!text.trim()) return toast.error('Paste text first'); const lines = text.split('\n')?.filter(l => l.trim().length);
+        const parsed = lines?.map(line => {
+          const parts = line.split(',')?.map(p => p.trim()); if (parts.length < 6) return { status: 'error', msg: 'Invalid format', name: line, code: '?', price: 0, category: 'Unknown', cost: 0, stock: 0 };
           const code = parts[0]; const name = parts[1]; const price = parseFloat(parts[2]); const category = parts[3] || 'General'; const cost = parseFloat(parts[4]) || 0; const stock = parseFloat(parts[5]) || 0; const expiryDate = trackExp ? (parts[6] || '') : '';
-          const isDup = existingProducts.some(p => (p.barcode && p.barcode === code) || ((p.name || '').toLowerCase() === (name || '').toLowerCase() && p.cost === cost));
+          const isDup = existingProducts?.some(p => (p.barcode && p.barcode === code) || ((p.name || '').toLowerCase() === (name || '').toLowerCase() && p.cost === cost));
           if (isNaN(price) || isNaN(cost) || isNaN(stock)) return { status: 'error', msg: 'Invalid number', name, code, price: 0, category, cost: 0, stock: 0, expiryDate };
           if (isDup) return { status: 'duplicate', msg: 'Barcode or Name/Cost exists', name, code, price, category, cost, stock, expiryDate };
           return { status: 'ready', name, code, price, category, cost, stock, expiryDate, isCommodity: (category || '').toLowerCase() === 'commodity' };
         }); setItems(parsed); setStep('preview');
       };
       const doImport = () => {
-        const valid = items.filter(i => i.status === 'ready').map(i => ({ id: crypto.randomUUID(), name: i.name, category: i.category, price: i.price, cost: i.cost, stock: i.stock, expiryDate: i.expiryDate, sold: 0, profit: 0, barcode: i.code, dateAdded: new Date().toISOString(), isCommodity: i.isCommodity, unit: i.isCommodity ? 'Kg' : undefined }));
+        const valid = items?.filter(i => i.status === 'ready')?.map(i => ({ id: crypto.randomUUID(), name: i.name, category: i.category, price: i.price, cost: i.cost, stock: i.stock, expiryDate: i.expiryDate, sold: 0, profit: 0, barcode: i.code, dateAdded: new Date().toISOString(), isCommodity: i.isCommodity, unit: i.isCommodity ? 'Kg' : undefined }));
         if (!valid.length) return toast.error('No valid items'); onImport(valid); onClose(); toast.success(`Imported ${valid.length} items`);
       };
       const handleStockScan = (code) => {
-        const itemIndex = items.findIndex(i => i.code === code && i.status !== 'error');
+        const itemIndex = items?.findIndex(i => i.code === code && i.status !== 'error');
         if (itemIndex > -1) { const newItems = [...items]; newItems[itemIndex].stock = (newItems[itemIndex].stock || 0) + 1; setItems(newItems); toast.success(`${newItems[itemIndex].name} stock: ${newItems[itemIndex].stock}`, { duration: 1500 }); }
         else { toast.error('Product not in import list.', { duration: 1500 }); }
       };
       const handleStockChange = (index, newStock) => { const newItems = [...items]; newItems[index].stock = Math.max(0, parseFloat(newStock) || 0); setItems(newItems); };
       return (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"><div className="bg-white rounded-2xl w-full max-w-5xl h-[85vh] flex flex-col shadow-2xl relative overflow-hidden">
         <div className="p-4 border-b flex justify-between items-center bg-slate-50"><h3 className="font-bold flex items-center gap-2 text-slate-800"><FileText className="w-5 h-5 text-emerald-600" /> Text Import Editor</h3><button onClick={onClose}><X className="w-5 h-5 text-slate-500 hover:text-slate-800" /></button></div>
-        <div className="flex-1 p-6 overflow-hidden flex flex-col">{step === 'input' ? (<><div className="bg-blue-50 text-blue-800 p-4 rounded-lg mb-4 text-sm border border-blue-100"><strong>Format Guide (CSV):</strong> <code>Barcode, Name, Price, Category, Cost, Stock{trackExp ? ', Expiry Date (Optional MM/YYYY)' : ''}</code><br />Example: <code>12345, Brake Pad, 2500, Spares, 1800, 10{trackExp ? ', 12/2027' : ''}</code></div><textarea className="flex-1 w-full border border-slate-300 rounded-xl p-4 font-mono text-sm focus:ring-2 focus:ring-emerald-500 outline-none resize-none" placeholder="Paste products here..." value={text} onChange={e => setText(e.target.value)}></textarea><div className="flex justify-end mt-4"><button onClick={parse} className="btn-primary py-3 px-6">Parse & Preview <ArrowRight className="w-4 h-4" /></button></div></>) : (<><div className="flex-1 overflow-auto border rounded-xl"><table className="w-full text-sm text-left"><thead className="bg-slate-50 text-slate-500 sticky top-0 z-10"><tr><th className="p-3">Status</th><th className="p-3">Barcode</th><th className="p-3">Name</th><th className="p-3">Category</th><th className="p-3 text-right">Price</th><th className="p-3 text-right">Cost</th><th className="p-3 text-center">Stock</th>{trackExp && <th className="p-3 text-center">Expiry</th>}</tr></thead><tbody className="divide-y">{items.map((it, i) => (<tr key={i} className={it.status === 'ready' ? 'bg-white' : 'bg-slate-50'}><td className="p-3 text-xs font-bold">{it.status === 'ready' && <span className="text-emerald-600 flex items-center gap-1"><Check className="w-3 h-3" /> Ready</span>}{it.status === 'duplicate' && <span className="text-amber-500 flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> Duplicate</span>}{it.status === 'error' && <span className="text-red-500 flex items-center gap-1"><X className="w-3 h-3" /> {it.msg}</span>}</td><td className="p-3 font-mono text-xs"><div className="flex items-center gap-2">{it.code}<button onClick={() => setScanIdx(i)} className="p-1 bg-slate-100 hover:bg-emerald-100 hover:text-emerald-600 rounded-full" title="Scan Barcode"><Scan className="w-3 h-3" /></button></div></td><td className="p-3 font-medium">{it.name}</td><td className="p-3 text-slate-500">{it.category}</td><td className="p-3 text-right font-bold">{it.price}</td><td className="p-3 text-right text-slate-500">{it.cost}</td><td className="p-3 text-center"><input type="number" min="0" value={it.stock} onChange={(e) => handleStockChange(i, e.target.value)} className="input-field py-1 text-center w-20 mx-auto" disabled={it.status !== 'ready'} /></td>{trackExp && <td className="p-3 text-center">{it.expiryDate || '-'}</td>}</tr>))}</tbody></table></div><div className="mt-4 flex justify-between items-center"><button onClick={() => setStep('input')} className="text-slate-500 hover:text-slate-800 font-medium">Back to Editor</button><div className="flex items-center gap-4"><span className="text-sm text-slate-500"><strong>{items.filter(i => i.status === 'ready').length}</strong> valid items</span><button onClick={() => setIsScanningStock(true)} className="btn-primary bg-blue-600 hover:bg-blue-700 py-3 px-6"><Scan className="w-4 h-4" /> Scan Stock</button><button onClick={doImport} className="btn-primary py-3 px-8"><Upload className="w-4 h-4" /> Import Products</button></div></div></>)}</div>
-        {scanIdx !== null && (<ScannerModal title="Update Barcode" onClose={() => setScanIdx(null)} onScan={(c) => { const copy = [...items]; const isDup = existingProducts.some(p => p.barcode === c); copy[scanIdx].code = c; copy[scanIdx].status = isDup ? 'duplicate' : 'ready'; copy[scanIdx].msg = isDup ? 'Barcode exists' : undefined; setItems(copy); setScanIdx(null); toast.success('Barcode updated'); }} scannerSize={superAdminSettings?.scannerSize} />)}
+        <div className="flex-1 p-6 overflow-hidden flex flex-col">{step === 'input' ? (<><div className="bg-blue-50 text-blue-800 p-4 rounded-lg mb-4 text-sm border border-blue-100"><strong>Format Guide (CSV):</strong> <code>Barcode, Name, Price, Category, Cost, Stock{trackExp ? ', Expiry Date (Optional MM/YYYY)' : ''}</code><br />Example: <code>12345, Brake Pad, 2500, Spares, 1800, 10{trackExp ? ', 12/2027' : ''}</code></div><textarea className="flex-1 w-full border border-slate-300 rounded-xl p-4 font-mono text-sm focus:ring-2 focus:ring-emerald-500 outline-none resize-none" placeholder="Paste products here..." value={text} onChange={e => setText(e.target.value)}></textarea><div className="flex justify-end mt-4"><button onClick={parse} className="btn-primary py-3 px-6">Parse & Preview <ArrowRight className="w-4 h-4" /></button></div></>) : (<><div className="flex-1 overflow-auto border rounded-xl"><table className="w-full text-sm text-left"><thead className="bg-slate-50 text-slate-500 sticky top-0 z-10"><tr><th className="p-3">Status</th><th className="p-3">Barcode</th><th className="p-3">Name</th><th className="p-3">Category</th><th className="p-3 text-right">Price</th><th className="p-3 text-right">Cost</th><th className="p-3 text-center">Stock</th>{trackExp && <th className="p-3 text-center">Expiry</th>}</tr></thead><tbody className="divide-y">{items?.map((it, i) => (<tr key={i} className={it.status === 'ready' ? 'bg-white' : 'bg-slate-50'}><td className="p-3 text-xs font-bold">{it.status === 'ready' && <span className="text-emerald-600 flex items-center gap-1"><Check className="w-3 h-3" /> Ready</span>}{it.status === 'duplicate' && <span className="text-amber-500 flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> Duplicate</span>}{it.status === 'error' && <span className="text-red-500 flex items-center gap-1"><X className="w-3 h-3" /> {it.msg}</span>}</td><td className="p-3 font-mono text-xs"><div className="flex items-center gap-2">{it.code}<button onClick={() => setScanIdx(i)} className="p-1 bg-slate-100 hover:bg-emerald-100 hover:text-emerald-600 rounded-full" title="Scan Barcode"><Scan className="w-3 h-3" /></button></div></td><td className="p-3 font-medium">{it.name}</td><td className="p-3 text-slate-500">{it.category}</td><td className="p-3 text-right font-bold">{it.price}</td><td className="p-3 text-right text-slate-500">{it.cost}</td><td className="p-3 text-center"><input type="number" min="0" value={it.stock} onChange={(e) => handleStockChange(i, e.target.value)} className="input-field py-1 text-center w-20 mx-auto" disabled={it.status !== 'ready'} /></td>{trackExp && <td className="p-3 text-center">{it.expiryDate || '-'}</td>}</tr>))}</tbody></table></div><div className="mt-4 flex justify-between items-center"><button onClick={() => setStep('input')} className="text-slate-500 hover:text-slate-800 font-medium">Back to Editor</button><div className="flex items-center gap-4"><span className="text-sm text-slate-500"><strong>{items?.filter(i => i.status === 'ready').length}</strong> valid items</span><button onClick={() => setIsScanningStock(true)} className="btn-primary bg-blue-600 hover:bg-blue-700 py-3 px-6"><Scan className="w-4 h-4" /> Scan Stock</button><button onClick={doImport} className="btn-primary py-3 px-8"><Upload className="w-4 h-4" /> Import Products</button></div></div></>)}</div>
+        {scanIdx !== null && (<ScannerModal title="Update Barcode" onClose={() => setScanIdx(null)} onScan={(c) => { const copy = [...items]; const isDup = existingProducts?.some(p => p.barcode === c); copy[scanIdx].code = c; copy[scanIdx].status = isDup ? 'duplicate' : 'ready'; copy[scanIdx].msg = isDup ? 'Barcode exists' : undefined; setItems(copy); setScanIdx(null); toast.success('Barcode updated'); }} scannerSize={superAdminSettings?.scannerSize} />)}
         {isScanningStock && (<ScannerModal title="Scan to Add Stock" onClose={() => setIsScanningStock(false)} onScan={handleStockScan} scannerSize={superAdminSettings?.scannerSize} />)}
       </div></div>);
     };
@@ -1021,9 +1032,9 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
     const OrderModal = ({ initialProducts, suppliers, shopName, onClose, initialSupplierId }) => {
       const [selectedSupplierId, setSelectedSupplierId] = useState(initialSupplierId || suppliers[0]?.id || '');
       const [quantities, setQuantities] = useState(() =>
-        initialProducts.reduce((acc, p) => ({ ...acc, [(p && p.id)]: 1 }), {})
+        initialProducts?.reduce((acc, p) => ({ ...acc, [(p && p.id)]: 1 }), {})
       );
-      const [selectedProductIds, setSelectedProductIds] = useState(() => new Set(initialProducts.map(p => (p && p.id))));
+      const [selectedProductIds, setSelectedProductIds] = useState(() => new Set(initialProducts?.map(p => (p && p.id))));
 
       const handleQtyChange = (productId, qty) => {
         const newQty = Math.max(1, parseInt(qty, 10) || 1);
@@ -1038,24 +1049,24 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
       };
 
       const toggleAll = (e) => {
-        if (e.target.checked) setSelectedProductIds(new Set(initialProducts.map(p => (p && p.id))));
+        if (e.target.checked) setSelectedProductIds(new Set(initialProducts?.map(p => (p && p.id))));
         else setSelectedProductIds(new Set());
       };
 
       const generateMessage = () => {
-        const supplier = suppliers.find(s => s.id === selectedSupplierId);
+        const supplier = suppliers?.find(s => s.id === selectedSupplierId);
         if (!supplier) {
           toast.error("Please select a supplier.");
           return;
         }
 
-        const selectedItems = initialProducts.filter(p => selectedProductIds.has((p && p.id)));
+        const selectedItems = initialProducts?.filter(p => selectedProductIds.has((p && p.id)));
         if (selectedItems.length === 0) {
           toast.error("Please select at least one product.");
           return;
         }
 
-        const itemsList = selectedItems.map(p => `- ${p.name}: ${quantities[(p && p.id)]}`).join('\n');
+        const itemsList = selectedItems?.map(p => `- ${p.name}: ${quantities[(p && p.id)]}`).join('\n');
         const message = `Hello ${supplier.name},\n\nThis is a supply request from *${shopName}*.\nPlease provide a quote for the following items:\n\n${itemsList}\n\nThank you.`;
 
         const phone = supplier.phone.replace(/\D/g, '').replace(/^0/, '254');
@@ -1076,7 +1087,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
               <div>
                 <label className="text-sm font-medium text-slate-600 block mb-1">Select Supplier</label>
                 <select value={selectedSupplierId} onChange={e => setSelectedSupplierId(e.target.value)} className="input-field">
-                  {suppliers.length > 0 ? suppliers.map(s => <option key={s.id} value={s.id}>{s.name} - {s.phone}</option>) : <option disabled>No suppliers added</option>}
+                  {suppliers.length > 0 ? suppliers?.map(s => <option key={s.id} value={s.id}>{s.name} - {s.phone}</option>) : <option disabled>No suppliers added</option>}
                 </select>
               </div>
               <div>
@@ -1088,7 +1099,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
                   </label>
                 </div>
                 <div className="space-y-2">
-                  {initialProducts.map(p => (
+                  {initialProducts?.map(p => (
                     <div key={(p && p.id)} className="grid grid-cols-4 items-center gap-4 p-2 bg-slate-50 rounded-lg">
                       <div className="col-span-3 flex items-center gap-3">
                         <input type="checkbox" checked={selectedProductIds.has((p && p.id))} onChange={() => toggleProduct((p && p.id))} className="w-4 h-4 text-emerald-600 rounded" />
@@ -1122,7 +1133,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
         setSelectedIds(newSet);
       };
 
-      const filteredProducts = useMemo(() => allProducts.filter(p =>
+      const filteredProducts = useMemo(() => allProducts?.filter(p =>
         (p.name || '').toLowerCase().includes(searchTerm.toLowerCase())
       ), [allProducts, searchTerm]);
 
@@ -1145,7 +1156,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
               </div>
             </div>
             <div className="flex-1 overflow-y-auto p-2">
-              {filteredProducts.map(p => (
+              {filteredProducts?.map(p => (
                 <label key={(p && p.id)} className="flex items-center gap-4 p-3 hover:bg-slate-50 rounded-lg cursor-pointer">
                   <input
                     type="checkbox"
@@ -1198,13 +1209,13 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
     const CartPanel = ({ cart, onUpdate, onRemove, onClear, onCheckout, currentUser }) => {
       const { subtotal, totalDiscount, grandTotal } = useMemo(() => {
         let subtotal = 0, totalDiscount = 0;
-        cart.forEach(item => { const itemTotal = item.price * item.quantity; subtotal += itemTotal; totalDiscount += item.discountType === 'percent' ? itemTotal * (item.discountValue / 100) : item.discountValue; });
+        cart?.forEach(item => { const itemTotal = item.price * item.quantity; subtotal += itemTotal; totalDiscount += item.discountType === 'percent' ? itemTotal * (item.discountValue / 100) : item.discountValue; });
         return { subtotal, totalDiscount, grandTotal: subtotal - totalDiscount };
       }, [cart]);
 
       return (<div className="card max-h-[calc(100vh-6rem)] flex flex-col p-0">
         <div className="p-4 border-b flex justify-between items-center"><h3 className="font-bold text-slate-800 flex items-center gap-2"><ShoppingCart className="w-5 h-5 text-emerald-600" /> Shopping Cart</h3><button onClick={onClear} className="text-xs font-medium text-red-500 hover:text-red-700 hover:underline">Clear</button></div>
-        <div className="flex-1 overflow-y-auto">{cart.length === 0 ? (<div className="p-10 text-center text-slate-400"><ShoppingBag className="w-12 h-12 mx-auto mb-2" /><p>Cart is empty</p></div>) : (cart.map(item => <CartItem key={item.cartId} item={item} onUpdate={onUpdate} onRemove={onRemove} currentUser={currentUser} />))}</div>
+        <div className="flex-1 overflow-y-auto">{cart.length === 0 ? (<div className="p-10 text-center text-slate-400"><ShoppingBag className="w-12 h-12 mx-auto mb-2" /><p>Cart is empty</p></div>) : (cart?.map(item => <CartItem key={item.cartId} item={item} onUpdate={onUpdate} onRemove={onRemove} currentUser={currentUser} />))}</div>
         {cart.length > 0 && (<div className="p-4 border-t bg-slate-50 space-y-4">
           <div className="space-y-1 text-sm"><div className="flex justify-between"><span className="text-slate-500">Subtotal</span><span className="font-medium">Ksh {subtotal.toLocaleString()}</span></div><div className="flex justify-between"><span className="text-slate-500">Discount</span><span className="font-medium text-red-500">- Ksh {totalDiscount.toLocaleString()}</span></div></div>
           <div className="flex justify-between items-center font-bold text-xl border-t pt-3 mt-3"><span className="text-slate-800">Total</span><span className="text-emerald-600">Ksh {grandTotal.toLocaleString()}</span></div>
@@ -1221,7 +1232,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
       const [customerPhone, setCustomerPhone] = useState('+254');
       const [customerSearch, setCustomerSearch] = useState('');
 
-      const totals = useMemo(() => { let subtotal = 0, totalDiscount = 0; cart.forEach(item => { const itemTotal = item.price * item.quantity; subtotal += itemTotal; totalDiscount += item.discountType === 'percent' ? itemTotal * (item.discountValue / 100) : item.discountValue; }); return { subtotal, totalDiscount, grandTotal: subtotal - totalDiscount }; }, [cart]);
+      const totals = useMemo(() => { let subtotal = 0, totalDiscount = 0; cart?.forEach(item => { const itemTotal = item.price * item.quantity; subtotal += itemTotal; totalDiscount += item.discountType === 'percent' ? itemTotal * (item.discountValue / 100) : item.discountValue; }); return { subtotal, totalDiscount, grandTotal: subtotal - totalDiscount }; }, [cart]);
 
       const change = cashGiven - totals.grandTotal;
 
@@ -1244,7 +1255,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
         message += `Served By: ${cashierName}\n`;
         if (customer?.name) message += `Customer: ${customer.name}\n`;
         message += `-----------------------------------\n`;
-        cart.forEach(item => {
+        cart?.forEach(item => {
           message += `${item.name}\n`;
           message += `  ${item.quantity} x ${(Number() || 0).toFixed(2)} = ${(Number(item.quantity * item.price) || 0).toFixed(2)}\n`;
         });
@@ -1261,7 +1272,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
         if (paymentMethod === 'Cash' && cashGiven < totals.grandTotal) { return toast.error('Cash given is less than the total amount.'); }
 
         // Auto-add new customer if details are filled and they don't exist
-        if (customerName && isPhoneValid && !customers.some(c => c.name === customerName && c.phone === customerPhone)) {
+        if (customerName && isPhoneValid && !customers?.some(c => c.name === customerName && c.phone === customerPhone)) {
           const newCustomer = { id: crypto.randomUUID(), name: customerName, phone: customerPhone };
           updateCustomers([...customers, newCustomer]);
           toast.success(`${customerName} added to customers.`, { duration: 2000 });
@@ -1291,7 +1302,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 
       useEffect(() => { if (totals.grandTotal > 0) setCashGiven(totals.grandTotal); }, [totals.grandTotal]);
 
-      const filteredCustomers = useMemo(() => customerSearch ? customers.filter(c => (c.name || '').toLowerCase().includes(customerSearch.toLowerCase()) || c.phone.includes(customerSearch)) : [], [customers, customerSearch]);
+      const filteredCustomers = useMemo(() => customerSearch ? customers?.filter(c => (c.name || '').toLowerCase().includes(customerSearch.toLowerCase()) || c.phone.includes(customerSearch)) : [], [customers, customerSearch]);
 
       return (<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"><div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl relative">
         <div className="p-4 border-b flex justify-between items-center bg-slate-50">
@@ -1323,7 +1334,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
                 <input type="text" value={customerSearch} onChange={e => setCustomerSearch(e.target.value)} className="input-field" placeholder="Search existing customer..." />
                 {filteredCustomers.length > 0 && (
                   <div className="absolute z-10 w-full bg-white border rounded-lg mt-1 max-h-32 overflow-auto shadow-lg">
-                    {filteredCustomers.map(c => <div key={c.id} onClick={() => handleSelectCustomer(c)} className="p-2 hover:bg-emerald-50 cursor-pointer text-sm">{c.name} - {c.phone}</div>)}
+                    {filteredCustomers?.map(c => <div key={c.id} onClick={() => handleSelectCustomer(c)} className="p-2 hover:bg-emerald-50 cursor-pointer text-sm">{c.name} - {c.phone}</div>)}
                   </div>
                 )}
               </div>
@@ -1350,22 +1361,22 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
       const [previewMode, setPreviewMode] = useState(false);
       const [previewData, setPreviewData] = useState([]);
 
-      const cats = [...new Set(products.map(p => (p && p.category)))].filter(Boolean).sort((a, b) => a.localeCompare(b));
-      const filteredForSelection = products.filter(p => (p.name || '').toLowerCase().includes(search.toLowerCase()) || (p.barcode && p.barcode.includes(search)));
+      const cats = [...new Set(products?.map(p => (p && p.category)))]?.filter(Boolean)?.sort((a, b) => a.localeCompare(b));
+      const filteredForSelection = products?.filter(p => (p.name || '').toLowerCase().includes(search.toLowerCase()) || (p.barcode && p.barcode.includes(search)));
 
       const generatePreview = () => {
         let affected = [];
         if (scope === 'all') affected = products;
-        else if (scope === 'category') affected = products.filter(p => (p && p.category) === catScope);
-        else if (scope === 'supplier') affected = products.filter(p => suppliers?.find(s => s.id === supplierScope)?.productIds?.includes((p && p.id)));
-        else if (scope === 'selected') affected = products.filter(p => selectedProductIds.has((p && p.id)));
+        else if (scope === 'category') affected = products?.filter(p => (p && p.category) === catScope);
+        else if (scope === 'supplier') affected = products?.filter(p => suppliers?.find(s => s.id === supplierScope)?.productIds?.includes((p && p.id)));
+        else if (scope === 'selected') affected = products?.filter(p => selectedProductIds.has((p && p.id)));
 
         if (affected.length === 0) return toast.error('No products found for this scope.');
         
         const val = parseFloat(value);
         if (isNaN(val) || val <= 0) return toast.error('Enter a valid positive value.');
 
-        const preview = affected.map(p => {
+        const preview = affected?.map(p => {
           let newPrice = p.price;
           if (adjustmentType === 'percentage') {
              const change = p.price * (val / 100);
@@ -1380,9 +1391,9 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
       };
 
       const handleApply = () => {
-        const affectedIds = new Set(previewData.map(p => (p && p.id)));
-        const updatedProducts = products.map(p => {
-           const previewItem = previewData.find(x => x.id === (p && p.id));
+        const affectedIds = new Set(previewData?.map(p => (p && p.id)));
+        const updatedProducts = products?.map(p => {
+           const previewItem = previewData?.find(x => x.id === (p && p.id));
            return previewItem ? { ...p, price: previewItem.newPrice } : p;
         });
 
@@ -1395,7 +1406,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
           affectedCount: previewData.length,
           affectedIds: Array.from(affectedIds)
         };
-        const existingLogs = JSON.parse(localStorage.getItem('bulkPriceAuditLogs') || '[]');
+        const existingLogs = safeJSONParse(localStorage.getItem('bulkPriceAuditLogs') || '[]');
         localStorage.setItem('bulkPriceAuditLogs', JSON.stringify([...existingLogs, log]));
 
         setProducts(updatedProducts);
@@ -1412,7 +1423,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
                 <p className="mb-4 text-slate-600">Products Affected: <strong>{previewData.length}</strong></p>
                 <table className="w-full text-left text-sm"><thead className="bg-slate-50"><tr><th className="p-2">Product</th><th className="p-2">Current</th><th className="p-2">New</th><th className="p-2">Diff</th></tr></thead>
                 <tbody>
-                  {previewData.slice(0, 100).map(p => (
+                  {previewData.slice(0, 100)?.map(p => (
                     <tr key={(p && p.id)} className="border-b"><td className="p-2">{p.name}</td><td className="p-2 text-slate-500">{(Number() || 0).toFixed(2)}</td><td className="p-2 font-bold text-emerald-600">{(Number() || 0).toFixed(2)}</td><td className="p-2 text-xs">{(Number(p.newPrice - p.price) || 0).toFixed(2)}</td></tr>
                   ))}
                   {previewData.length > 100 && <tr><td colSpan="4" className="p-2 text-center text-slate-400">...and {previewData.length - 100} more</td></tr>}
@@ -1432,18 +1443,18 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-2">Apply To:</label>
                 <div className="flex flex-wrap gap-4">
-                  {['all', 'category', 'supplier', 'selected'].map(s => (
+                  {['all', 'category', 'supplier', 'selected']?.map(s => (
                     <label key={s} className="flex items-center gap-2 cursor-pointer"><input type="radio" checked={scope === s} onChange={() => setScope(s)} className="text-emerald-600" /> <span className="capitalize">{s} Products</span></label>
                   ))}
                 </div>
               </div>
               
-              {scope === 'category' && (<select value={catScope} onChange={e => setCatScope(e.target.value)} className="input-field w-full"><option value="">Select Category...</option>{cats.map(c => <option key={c} value={c}>{c}</option>)}</select>)}
+              {scope === 'category' && (<select value={catScope} onChange={e => setCatScope(e.target.value)} className="input-field w-full"><option value="">Select Category...</option>{cats?.map(c => <option key={c} value={c}>{c}</option>)}</select>)}
               {scope === 'supplier' && (<select value={supplierScope} onChange={e => setSupplierScope(e.target.value)} className="input-field w-full"><option value="">Select Supplier...</option>{suppliers?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select>)}
               {scope === 'selected' && (
                  <div className="border border-slate-200 rounded-xl p-3 max-h-48 overflow-auto">
                    <input className="input-field mb-2" placeholder="Search to select..." value={search} onChange={e => setSearch(e.target.value)} />
-                   {filteredForSelection.map(p => (
+                   {filteredForSelection?.map(p => (
                      <label key={(p && p.id)} className="flex items-center gap-2 py-1"><input type="checkbox" checked={selectedProductIds.has((p && p.id))} onChange={e => { const newSet = new Set(selectedProductIds); e.target.checked ? newSet.add((p && p.id)) : newSet.delete((p && p.id)); setSelectedProductIds(newSet); }} /> {p.name} - Ksh {p.price}</label>
                    ))}
                  </div>
@@ -1480,7 +1491,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
       return (
         <div className="flex justify-center items-center gap-2 mt-6 mb-2 flex-wrap">
           <button onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))} disabled={currentPage === 1} className="px-3 py-1 bg-white border border-slate-200 rounded-md text-slate-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors">Prev</button>
-          {getPages().map((p, i) => (
+          {getPages()?.map((p, i) => (
             <button key={i} onClick={() => p !== '...' && setCurrentPage(p)} disabled={p === '...'} className={`px-3 py-1 border rounded-md transition-colors ${p === currentPage ? 'bg-emerald-600 text-white border-emerald-600 font-bold' : p === '...' ? 'border-transparent text-slate-400 bg-transparent cursor-default' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}>{p}</button>
           ))}
           <button onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))} disabled={currentPage === totalPages} className="px-3 py-1 bg-white border border-slate-200 rounded-md text-slate-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors">Next</button>
@@ -1508,7 +1519,7 @@ const PrintableStockForm = ({ products, settings }) => {
 
   return (
     <div className="bg-white text-black font-sans w-full mx-auto" style={{ maxWidth: '210mm' }}>
-      {chunks.map((chunk, chunkIdx) => (
+      {chunks?.map((chunk, chunkIdx) => (
         <div key={chunkIdx} className="p-8 break-after-page" style={{ pageBreakAfter: 'always' }}>
           <div className="text-center mb-6">
             <h1 className="text-2xl font-bold uppercase tracking-widest">{settings?.name || 'Store'}</h1>
@@ -1528,7 +1539,7 @@ const PrintableStockForm = ({ products, settings }) => {
               </tr>
             </thead>
             <tbody>
-              {chunk.map((p, indexInChunk) => {
+              {chunk?.map((p, indexInChunk) => {
                 const absoluteIndex = chunkIdx * itemsPerPage + indexInChunk + 1;
                 return (
                   <tr key={p.id || absoluteIndex}>
@@ -1564,14 +1575,14 @@ const PrintableStockForm = ({ products, settings }) => {
         window.speechSynthesis.cancel();
         const utterance = new SpeechSynthesisUtterance(text);
         const voices = window.speechSynthesis.getVoices();
-        const engVoice = voices.find(v => v.lang.startsWith('en')) || voices[0];
+        const engVoice = voices?.find(v => v.lang.startsWith('en')) || voices[0];
         if (engVoice) utterance.voice = engVoice;
         utterance.rate = 1.0;
         window.speechSynthesis.speak(utterance);
       }, []);
 
-      const updateCartItem = (cartId, updatedValues) => { setCart(currentCart => currentCart.map(item => item.cartId === cartId ? { ...item, ...updatedValues } : item)); };
-      const removeCartItem = (cartId) => { setCart(currentCart => currentCart.filter(item => item.cartId !== cartId)); };
+      const updateCartItem = (cartId, updatedValues) => { setCart(currentCart => currentCart?.map(item => item.cartId === cartId ? { ...item, ...updatedValues } : item)); };
+      const removeCartItem = (cartId) => { setCart(currentCart => currentCart?.filter(item => item.cartId !== cartId)); };
       const clearCart = () => { if (cart.length > 0) setCart([]); };
 
       const handleVoiceCommand = useCallback((rawTranscript) => {
@@ -1590,7 +1601,7 @@ const PrintableStockForm = ({ products, settings }) => {
         };
 
         const words = (rawTranscript || '').toLowerCase().trim().split(/\s+/);
-        const normalizedWords = words.map(w => numberMap[w] || w);
+        const normalizedWords = words?.map(w => numberMap[w] || w);
         const transcript = normalizedWords.join(' ');
 
         setVoiceFeedback(`Heard: "${rawTranscript}"${(rawTranscript || '').toLowerCase() !== transcript ? ` (Parsed: "${transcript}")` : ''}`);
@@ -1600,30 +1611,30 @@ const PrintableStockForm = ({ products, settings }) => {
           if (!cleanQuery) return null;
 
           // 1. Exact name match
-          let best = products.find(p => (p.name || '').toLowerCase() === cleanQuery);
+          let best = products?.find(p => (p.name || '').toLowerCase() === cleanQuery);
           if (best) return best;
 
           // 2. Exact barcode match
-          best = products.find(p => p.barcode && (p.barcode || '').toLowerCase() === cleanQuery);
+          best = products?.find(p => p.barcode && (p.barcode || '').toLowerCase() === cleanQuery);
           if (best) return best;
 
           // 3. Starts with match
-          best = products.find(p => (p.name || '').toLowerCase().startsWith(cleanQuery));
+          best = products?.find(p => (p.name || '').toLowerCase().startsWith(cleanQuery));
           if (best) return best;
 
           // 4. Includes match
-          best = products.find(p => (p.name || '').toLowerCase().includes(cleanQuery));
+          best = products?.find(p => (p.name || '').toLowerCase().includes(cleanQuery));
           if (best) return best;
 
           // 5. Keyword similarity match
-          const queryWords = cleanQuery.split(/\s+/).filter(w => w.length > 1);
+          const queryWords = cleanQuery.split(/\s+/)?.filter(w => w.length > 1);
           if (queryWords.length > 0) {
             let highestScore = 0;
             let bestMatch = null;
-            products.forEach(p => {
+            products?.forEach(p => {
               const prodNameLower = (p.name || '').toLowerCase();
               let score = 0;
-              queryWords.forEach(qw => {
+              queryWords?.forEach(qw => {
                 if (prodNameLower.includes(qw)) {
                   score += qw.length;
                 }
@@ -1633,7 +1644,7 @@ const PrintableStockForm = ({ products, settings }) => {
                 bestMatch = p;
               }
             });
-            if (bestMatch && highestScore >= Math.min(...queryWords.map(w => w.length))) {
+            if (bestMatch && highestScore >= Math.min(...queryWords?.map(w => w.length))) {
               return bestMatch;
             }
           }
@@ -1706,7 +1717,7 @@ const PrintableStockForm = ({ products, settings }) => {
             }
 
             setCart(currentCart => {
-              const totalInCart = currentCart.reduce((sum, item) => item.productId === matchedProduct.id ? sum + item.quantity : sum, 0);
+              const totalInCart = currentCart?.reduce((sum, item) => item.productId === matchedProduct.id ? sum + item.quantity : sum, 0);
 
               if (totalInCart + quantity > matchedProduct.stock) {
                 const available = matchedProduct.stock - totalInCart;
@@ -1777,7 +1788,7 @@ const PrintableStockForm = ({ products, settings }) => {
 
         if (transcript.startsWith('remove ')) {
           const productNameQuery = transcript.substring(7).trim();
-          const cartItem = cart.find(item => (item.name || '').toLowerCase().includes(productNameQuery));
+          const cartItem = cart?.find(item => (item.name || '').toLowerCase().includes(productNameQuery));
           if (cartItem) {
             removeCartItem(cartItem.cartId);
             speak(`Removed ${cartItem.name}`);
@@ -1890,12 +1901,12 @@ const PrintableStockForm = ({ products, settings }) => {
           if (start) start.setHours(0, 0, 0, 0);
           const end = range.end ? new Date(range.end) : null;
           if (end) end.setHours(23, 59, 59, 999);
-          return items.filter(item => {
+          return items?.filter(item => {
             const itemDate = new Date(item.date);
             return (!start || itemDate >= start) && (!end || itemDate <= end);
           });
         };
-        return filterByDate([...(stockHistory || [])], stockDateRange).reverse().filter(s => (s.name || '').toLowerCase().includes(stockSearch.toLowerCase()));
+        return filterByDate([...(stockHistory || [])], stockDateRange).reverse()?.filter(s => (s.name || '').toLowerCase().includes(stockSearch.toLowerCase()));
       }, [stockHistory, stockDateRange, stockSearch]);
 
       useEffect(() => {
@@ -1910,14 +1921,14 @@ const PrintableStockForm = ({ products, settings }) => {
           window.removeEventListener('touchstart', handleAnyAction);
         };
       }, [showAttractMode]);
-      const addProd = () => { if (!form.name || !form.price || !form.stock) return toast.error('Missing fields'); if (form.code && products.some(p => p.barcode === form.code && (p && p.id) !== editId)) return toast.error('Barcode exists'); const newProd = { id: crypto.randomUUID(), name: form.name, category: form.cat || 'General', price: parseFloat(form.price), cost: parseFloat(form.cost) || 0, stock: parseFloat(form.stock), barcode: form.code, sold: 0, profit: 0, dateAdded: new Date().toISOString(), isCommodity: form.isCommodity, unit: form.isCommodity ? form.unit : undefined, expiryDate: form.expiryDate , cashierName: currentUser?.name || 'Unknown', timestamp: new Date().toISOString()}; setProducts([...products, newProd]); toast.success('Added'); setForm({ name: '', price: '', cost: '', stock: '', cat: '', code: '', isCommodity: false, unit: 'Kg', expiryDate: '' }); };
+      const addProd = () => { if (!form.name || !form.price || !form.stock) return toast.error('Missing fields'); if (form.code && products?.some(p => p.barcode === form.code && (p && p.id) !== editId)) return toast.error('Barcode exists'); const newProd = { id: crypto.randomUUID(), name: form.name, category: form.cat || 'General', price: parseFloat(form.price), cost: parseFloat(form.cost) || 0, stock: parseFloat(form.stock), barcode: form.code, sold: 0, profit: 0, dateAdded: new Date().toISOString(), isCommodity: form.isCommodity, unit: form.isCommodity ? form.unit : undefined, expiryDate: form.expiryDate , cashierName: currentUser?.name || 'Unknown', timestamp: new Date().toISOString()}; setProducts([...products, newProd]); toast.success('Added'); setForm({ name: '', price: '', cost: '', stock: '', cat: '', code: '', isCommodity: false, unit: 'Kg', expiryDate: '' }); };
 
       const addToCart = (product) => {
         if (product.stock <= 0) { return toast.error(`${product.name} is out of stock.`); }
 
         setCart(currentCart => {
           // Calculate total quantity of this product currently in cart
-          const totalInCart = currentCart.reduce((sum, item) => item.productId === product.id ? sum + item.quantity : sum, 0);
+          const totalInCart = currentCart?.reduce((sum, item) => item.productId === product.id ? sum + item.quantity : sum, 0);
 
           if (totalInCart + 1 > product.stock) {
             toast.error(`Not enough stock for ${product.name}. Only ${product.stock} left.`);
@@ -1956,17 +1967,17 @@ const PrintableStockForm = ({ products, settings }) => {
       const handleCheckout = (saleDetails) => {
         processSale(saleDetails);
       };
-      function addStock(p, q) { const updated = products.map(x => x.id === (p && p.id) ? { ...x, stock: x.stock + q } : x); setProducts(updated); setStockHistory([...stockHistory, { name: p.name, qty: q, action: 'Added', barcode: p.barcode, date: new Date().toISOString(), cashierName: currentUser?.name }]); toast.success(`+${q} Stock: ${p.name}`, { duration: 1500 }); };
-      const handleScan = (code) => { const p = products.find(x => x.barcode === code); if (scannerMode === 'sell') { if (!p) { toast.error('Product not found', { duration: 1500 }); return; } addToCart(p); setScannerMode(null); return; } if (scannerMode === 'stock') { if (!p) { toast.error('Product not found', { duration: 1500 }); return; } setScannerMode(null); const q = prompt(`Add Stock for "${p.name}":`, '1'); if (q !== null) { const n = parseFloat(q); if (!isNaN(n) && n > 0) addStock(p, n); else toast.error('Invalid quantity'); } return; } setScannerMode(null); if (scannerMode === 'fill') { if (editId) setEditData({ ...editData, barcode: code }); else setForm({ ...form, code }); toast.success('Barcode scanned'); } else if (scannerMode === 'update') { if (products.some(x => x.barcode === code && x.id !== updateId)) { toast.error('Barcode is already taken'); } else { setProducts(products.map(x => x.id === updateId ? { ...x, barcode: code } : x)); toast.success('Barcode updated'); } setUpdateId(null); } };
+      function addStock(p, q) { const updated = products?.map(x => x.id === (p && p.id) ? { ...x, stock: x.stock + q } : x); setProducts(updated); setStockHistory([...stockHistory, { name: p.name, qty: q, action: 'Added', barcode: p.barcode, date: new Date().toISOString(), cashierName: currentUser?.name }]); toast.success(`+${q} Stock: ${p.name}`, { duration: 1500 }); };
+      const handleScan = (code) => { const p = products?.find(x => x.barcode === code); if (scannerMode === 'sell') { if (!p) { toast.error('Product not found', { duration: 1500 }); return; } addToCart(p); setScannerMode(null); return; } if (scannerMode === 'stock') { if (!p) { toast.error('Product not found', { duration: 1500 }); return; } setScannerMode(null); const q = prompt(`Add Stock for "${p.name}":`, '1'); if (q !== null) { const n = parseFloat(q); if (!isNaN(n) && n > 0) addStock(p, n); else toast.error('Invalid quantity'); } return; } setScannerMode(null); if (scannerMode === 'fill') { if (editId) setEditData({ ...editData, barcode: code }); else setForm({ ...form, code }); toast.success('Barcode scanned'); } else if (scannerMode === 'update') { if (products?.some(x => x.barcode === code && x.id !== updateId)) { toast.error('Barcode is already taken'); } else { setProducts(products?.map(x => x.id === updateId ? { ...x, barcode: code } : x)); toast.success('Barcode updated'); } setUpdateId(null); } };
 
-      const cats = useMemo(() => [...new Set(products.map(p => (p && p.category)))].filter(Boolean).sort((a, b) => a.localeCompare(b)), [products]);
+      const cats = useMemo(() => [...new Set(products?.map(p => (p && p.category)))]?.filter(Boolean)?.sort((a, b) => a.localeCompare(b)), [products]);
       const filtered = useMemo(() => {
-  let res = products.filter(p => ((p.name || '').toLowerCase().includes(search.toLowerCase()) || (p.barcode && p.barcode.includes(search))) && (cat ? (p && p.category) === cat : true));
+  let res = products?.filter(p => ((p.name || '').toLowerCase().includes(search.toLowerCase()) || (p.barcode && p.barcode.includes(search))) && (cat ? (p && p.category) === cat : true));
   if (activeTab === 'expiring') {
     const today = new Date();
     const nextWeek = new Date();
     nextWeek.setDate(today.getDate() + 7);
-    res = res.filter(p => {
+    res = res?.filter(p => {
       if (!p.expiryDate) return false;
       let d;
       if (p.expiryDate.includes('/')) {
@@ -1982,14 +1993,14 @@ const PrintableStockForm = ({ products, settings }) => {
 }, [products, search, cat, activeTab]);
 
       const handleCreateOrder = (items) => {
-        const perfectSupplier = suppliers.find(s => items.every(item => (s.productIds || []).includes(item.id)));
+        const perfectSupplier = suppliers?.find(s => items?.every(item => (s.productIds || []).includes(item.id)));
         setInitialSupplierId(perfectSupplier ? perfectSupplier.id : null);
         setSelectedOrderItems(items);
         setShowOrderModal(true);
       };
 
       const handleSelect = (id) => { const newSet = new Set(selectedIds); if (newSet.has(id)) { newSet.delete(id); } else { newSet.add(id); } setSelectedIds(newSet); };
-      const handleSelectAll = (e) => { if (e.target.checked) { setSelectedIds(new Set(filtered.map(p => (p && p.id)))); } else { setSelectedIds(new Set()); } };
+      const handleSelectAll = (e) => { if (e.target.checked) { setSelectedIds(new Set(filtered?.map(p => (p && p.id)))); } else { setSelectedIds(new Set()); } };
 
       useEffect(() => {
         const handleGlobalScan = (e) => {
@@ -2012,7 +2023,7 @@ const PrintableStockForm = ({ products, settings }) => {
               }
               const code = barcodeBuffer.current.text;
               barcodeBuffer.current.text = '';
-              const p = products.find(x => x.barcode === code);
+              const p = products?.find(x => x.barcode === code);
               if (p) {
                 addToCart(p);
                 lastScanTime.current = Date.now();
@@ -2050,7 +2061,7 @@ const PrintableStockForm = ({ products, settings }) => {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
-            {(role === 'owner' || perms.editProducts) && showAddProduct && (<div className="card grid md:grid-cols-2 lg:grid-cols-4 gap-4"><div className="col-span-full font-semibold text-slate-700">Add New Product</div><div className="lg:col-span-2"><input className="input-field" placeholder="Product Name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} /></div><div><input className="input-field" type="number" placeholder={form.isCommodity ? `Price per ${form.unit}` : "Price"} value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} /></div>{settings.showCosts && <div><input className="input-field" type="number" placeholder={form.isCommodity ? `Cost per ${form.unit}` : "Cost"} value={form.cost} onChange={e => setForm({ ...form, cost: e.target.value })} /></div>}<div><input className="input-field" type="number" placeholder={form.isCommodity ? `Stock (${form.unit})` : "Stock"} value={form.stock} onChange={e => setForm({ ...form, stock: e.target.value })} /></div>{settings.trackExpiry !== false && <div><label className="text-xs text-slate-500 font-medium block mb-1">Expiry Date</label><input type="month" className="input-field" value={form.expiryDate} onChange={e => setForm({ ...form, expiryDate: e.target.value })} /></div>}<div><input className="input-field" list="category-list" placeholder="Category" value={form.cat} onChange={e => setForm({ ...form, cat: e.target.value })} /><datalist id="category-list">{cats.map(c => <option key={c} value={c} />)}</datalist></div><div className="col-span-full lg:col-span-2"><div className="relative flex-1"><input className="input-field pr-8" placeholder="Barcode (Optional)" value={form.code} onChange={e => setForm({ ...form, code: e.target.value })} />{settings.showScan && <button onClick={() => setScannerMode('fill')} className="absolute right-2 top-2.5 text-slate-400 hover:text-emerald-600"><Scan className="w-4 h-4" /></button>}</div></div><div className="col-span-full flex justify-between items-center mt-2"><div className="flex items-center gap-4"><div className="flex items-center gap-2"><input type="checkbox" id="isCommodityAdd" checked={form.isCommodity} onChange={e => setForm({ ...form, isCommodity: e.target.checked })} className="w-4 h-4 text-emerald-600 bg-gray-100 border-gray-300 rounded focus:ring-emerald-500" /><label htmlFor="isCommodityAdd" className="text-sm font-medium text-slate-700">Commodity</label></div>{form.isCommodity && (<select value={form.unit} onChange={e => setForm({ ...form, unit: e.target.value })} className="input-field py-1 text-sm w-24"><option value="Kg">Kg</option><option value="L">L</option></select>)}</div><button onClick={addProd} className="btn-primary px-6"><Plus className="w-4 h-4" /> Add</button></div></div>)}
+            {(role === 'owner' || perms.editProducts) && showAddProduct && (<div className="card grid md:grid-cols-2 lg:grid-cols-4 gap-4"><div className="col-span-full font-semibold text-slate-700">Add New Product</div><div className="lg:col-span-2"><input className="input-field" placeholder="Product Name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} /></div><div><input className="input-field" type="number" placeholder={form.isCommodity ? `Price per ${form.unit}` : "Price"} value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} /></div>{settings.showCosts && <div><input className="input-field" type="number" placeholder={form.isCommodity ? `Cost per ${form.unit}` : "Cost"} value={form.cost} onChange={e => setForm({ ...form, cost: e.target.value })} /></div>}<div><input className="input-field" type="number" placeholder={form.isCommodity ? `Stock (${form.unit})` : "Stock"} value={form.stock} onChange={e => setForm({ ...form, stock: e.target.value })} /></div>{settings.trackExpiry !== false && <div><label className="text-xs text-slate-500 font-medium block mb-1">Expiry Date</label><input type="month" className="input-field" value={form.expiryDate} onChange={e => setForm({ ...form, expiryDate: e.target.value })} /></div>}<div><input className="input-field" list="category-list" placeholder="Category" value={form.cat} onChange={e => setForm({ ...form, cat: e.target.value })} /><datalist id="category-list">{cats?.map(c => <option key={c} value={c} />)}</datalist></div><div className="col-span-full lg:col-span-2"><div className="relative flex-1"><input className="input-field pr-8" placeholder="Barcode (Optional)" value={form.code} onChange={e => setForm({ ...form, code: e.target.value })} />{settings.showScan && <button onClick={() => setScannerMode('fill')} className="absolute right-2 top-2.5 text-slate-400 hover:text-emerald-600"><Scan className="w-4 h-4" /></button>}</div></div><div className="col-span-full flex justify-between items-center mt-2"><div className="flex items-center gap-4"><div className="flex items-center gap-2"><input type="checkbox" id="isCommodityAdd" checked={form.isCommodity} onChange={e => setForm({ ...form, isCommodity: e.target.checked })} className="w-4 h-4 text-emerald-600 bg-gray-100 border-gray-300 rounded focus:ring-emerald-500" /><label htmlFor="isCommodityAdd" className="text-sm font-medium text-slate-700">Commodity</label></div>{form.isCommodity && (<select value={form.unit} onChange={e => setForm({ ...form, unit: e.target.value })} className="input-field py-1 text-sm w-24"><option value="Kg">Kg</option><option value="L">L</option></select>)}</div><button onClick={addProd} className="btn-primary px-6"><Plus className="w-4 h-4" /> Add</button></div></div>)}
             
             {role === 'owner' && <div className="flex gap-4 mb-4 border-b border-slate-200">
               <button onClick={() => setProdTab('manage')} className={`pb-3 px-2 font-semibold text-sm border-b-2 transition-colors ${prodTab === 'manage' ? 'border-emerald-600 text-emerald-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>Manage Products</button>
@@ -2084,12 +2095,12 @@ const PrintableStockForm = ({ products, settings }) => {
                 )}
               </div>
               <div className="flex-1 flex gap-2 items-center">
-                <select className="input-field flex-1" value={cat} onChange={e => setCat(e.target.value)}><option value="">All Categories</option>{cats.map(c => <option key={c} value={c}>{c}</option>)}</select>
+                <select className="input-field flex-1" value={cat} onChange={e => setCat(e.target.value)}><option value="">All Categories</option>{cats?.map(c => <option key={c} value={c}>{c}</option>)}</select>
                 {cat && (role === 'owner' || perms.editProducts) && (
                   <button onClick={() => {
                     const newCat = prompt('Rename Category:', cat);
                     if (newCat && newCat.trim() && newCat !== cat) {
-                      setProducts(products.map(p => (p && p.category) === cat ? { ...p, category: newCat.trim() } : p));
+                      setProducts(products?.map(p => (p && p.category) === cat ? { ...p, category: newCat.trim() } : p));
                       setCat(newCat.trim());
                       toast.success('Category renamed');
                     }
@@ -2098,10 +2109,10 @@ const PrintableStockForm = ({ products, settings }) => {
                   </button>
                 )}
               </div>
-              {role === 'owner' && selectedIds.size > 0 && <button onClick={() => handleCreateOrder(products.filter(p => selectedIds.has((p && p.id))))} className="btn-primary bg-blue-600 hover:bg-blue-700 py-2 px-4 whitespace-nowrap"><Truck className="w-4 h-4" /> Order ({selectedIds.size})</button>}
-              {role === 'owner' && selectedIds.size > 0 && <button onClick={() => { setShowShoppingListModal(true); setShoppingListItems(products.filter(p => selectedIds.has((p && p.id))).map(p => ({ ...p, qty: 1 }))); }} className="btn-primary bg-emerald-600 hover:bg-emerald-700 py-2 px-4 whitespace-nowrap"><ClipboardList className="w-4 h-4" /> Create shopping list</button>}
+              {role === 'owner' && selectedIds.size > 0 && <button onClick={() => handleCreateOrder(products?.filter(p => selectedIds.has((p && p.id))))} className="btn-primary bg-blue-600 hover:bg-blue-700 py-2 px-4 whitespace-nowrap"><Truck className="w-4 h-4" /> Order ({selectedIds.size})</button>}
+              {role === 'owner' && selectedIds.size > 0 && <button onClick={() => { setShowShoppingListModal(true); setShoppingListItems(products?.filter(p => selectedIds.has((p && p.id)))?.map(p => ({ ...p, qty: 1 }))); }} className="btn-primary bg-emerald-600 hover:bg-emerald-700 py-2 px-4 whitespace-nowrap"><ClipboardList className="w-4 h-4" /> Create shopping list</button>}
             </div>
-            <div>{role === 'owner' && filtered.length > 0 && (<div className="flex items-center gap-2 mb-3 px-1"><input type="checkbox" onChange={handleSelectAll} checked={selectedIds.size === filtered.length && filtered.length > 0} className="w-4 h-4 text-emerald-600 bg-gray-100 border-gray-300 rounded focus:ring-emerald-500" /><span className="text-xs text-slate-500 font-medium">Select all ({filtered.length})</span></div>)}<div className="grid grid-cols-1 md:grid-cols-2 gap-3"><ErrorBoundary>{filtered.slice((currentPage - 1) * 50, currentPage * 50).map(p => { const safePrice = Number(p.price) || 0; const safeCost = Number(p.cost) || 0; const safeStock = Number(p.stock) || 0; const isEdit = editId === (p && p.id); if (isEdit) { return (<div key={(p && p.id)} className="bg-white rounded-2xl border-2 border-emerald-300 shadow-sm p-4 md:col-span-2"><div className="grid grid-cols-1 md:grid-cols-2 gap-3"><input className="input-field py-2 text-sm" placeholder="Name" value={editData.name} onChange={e => setEditData({ ...editData, name: e.target.value })} /><input className="input-field py-2 text-xs font-mono" placeholder="Barcode" value={editData.barcode || ''} onChange={e => setEditData({ ...editData, barcode: e.target.value })} />{(role === 'owner' || perms.editPriceAndCost) ? <input type="number" className="input-field py-2" placeholder="Price" value={editData.price ?? ''} onChange={e => setEditData({ ...editData, price: parseFloat(e.target.value) })} /> : <div className="py-2 text-slate-600">Ksh. {(Number(editData.price) || 0).toLocaleString()}</div>}{canViewCosts && ((role === 'owner' || perms.editPriceAndCost) ? <input type="number" className="input-field py-2" placeholder="Cost" value={editData.cost ?? ''} onChange={e => setEditData({ ...editData, cost: parseFloat(e.target.value) })} /> : <div className="py-2 text-slate-500">Cost: Ksh. {(Number(editData.cost) || 0).toLocaleString()}</div>)}<input type="number" className="input-field py-2" placeholder="Stock" value={editData.stock ?? ''} onChange={e => setEditData({ ...editData, stock: parseFloat(e.target.value) })} /><input className="input-field py-2" placeholder="Category" value={editData.category || ''} onChange={e => setEditData({ ...editData, category: e.target.value })} />{settings.trackExpiry !== false && <input type="month" className="input-field py-2" value={editData.expiryDate || ''} onChange={e => setEditData({ ...editData, expiryDate: e.target.value })} />}<div className="flex items-center gap-2"><input type="checkbox" id={`commodity-edit-${(p && p.id)}`} checked={!!editData.isCommodity} onChange={e => setEditData({ ...editData, isCommodity: e.target.checked })} className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500" /><label htmlFor={`commodity-edit-${(p && p.id)}`} className="text-xs font-medium">Commodity</label>{!!editData.isCommodity && (<select value={editData.unit || 'Kg'} onChange={e => setEditData({ ...editData, unit: e.target.value })} className="input-field py-1 text-xs w-20"><option value="Kg">Kg</option><option value="L">L</option></select>)}</div></div><div className="flex justify-end gap-2 mt-3"><button onClick={() => setEditId(null)} className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 text-sm font-medium flex items-center gap-1"><X className="w-4 h-4" /> Cancel</button><button onClick={() => { const updated = products.map(x => x.id === editId ? { ...x, ...editData, unit: editData.isCommodity ? (editData.unit || 'Kg') : undefined } : x); setProducts(updated); toast.success('Updated'); setEditId(null); }} className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-sm font-medium flex items-center gap-1"><Check className="w-4 h-4" /> Save</button></div></div>); } return (<div key={(p && p.id)} className={`bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow p-4 flex ${p.expiryDate ? 'ring-1 ring-amber-100' : ''}`}><div className="w-2/5 flex flex-col justify-between pr-4 border-r border-dashed border-slate-200"><div>{role === 'owner' ? (<input type="checkbox" checked={selectedIds.has((p && p.id))} onChange={() => handleSelect((p && p.id))} className="w-5 h-5 text-emerald-600 bg-white border-slate-300 rounded-md focus:ring-emerald-500" />) : <div className="h-5"/>}</div><div className="flex-1 flex items-center"><div className="text-xl md:text-2xl font-extrabold text-emerald-600 leading-tight">Ksh. {safePrice.toLocaleString()}{p.isCommodity ? <span className="text-sm font-semibold">/{p.unit}</span> : ''}</div></div><div className="flex items-center gap-2"><span className={`px-3 py-1 rounded-full text-xs font-bold ${safeStock <= 5 ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>{safeStock} {p.isCommodity ? p.unit : 'left'}</span>{(role === 'owner' || perms.addStock) && <button onClick={() => { const q = prompt('Add Stock:'); if (q) addStock(p, parseFloat(q)) }} className="p-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg" title="Add Stock"><Plus className="w-4 h-4 text-slate-700" /></button>}</div></div><div className="w-3/5 pl-4 flex flex-col">{settings.trackExpiry !== false && p.expiryDate && (<div className="self-start mb-2"><span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-amber-50 text-amber-700 text-xs font-bold border border-amber-100"><Calendar className="w-3 h-3" /> Exp: {p.expiryDate}</span></div>)}<div className="text-base md:text-lg font-bold text-slate-900 leading-tight">{p.name}</div>{canViewCosts && <div className="text-sm text-slate-500 mt-1">Ksh. {safeCost.toLocaleString()}{p.isCommodity ? `/${p.unit}` : ''}</div>}{(p && p.category) && <div className="text-sm text-slate-500 mt-1">{(p && p.category)}</div>}{p.barcode && <div className="text-[10px] text-slate-400 font-mono mt-1 truncate">{p.barcode}</div>}<div className="border-t border-slate-100 mt-auto pt-3 flex gap-1.5 flex-wrap"><button onClick={() => addToCart(p)} className="p-2 bg-emerald-50 hover:bg-emerald-100 rounded-lg" title="Add to Cart"><ShoppingCart className="w-4 h-4 text-emerald-600" /></button>{(role === 'owner' || perms.addStock) && <button onClick={() => { const q = prompt('Add Stock:'); if (q) addStock(p, parseFloat(q)) }} className="p-2 bg-blue-50 hover:bg-blue-100 rounded-lg" title="Add Stock"><PackagePlus className="w-4 h-4 text-blue-600" /></button>}{settings.showScan && (role === 'owner' || perms.editProducts) && <button onClick={() => { setUpdateId((p && p.id)); setScannerMode('update'); }} className="p-2 bg-indigo-50 hover:bg-indigo-100 rounded-lg" title="Update Barcode"><QrCode className="w-4 h-4 text-indigo-600" /></button>}{(role === 'owner' || perms.editProducts) && <button onClick={() => { setEditId((p && p.id)); setEditData({ ...p }) }} className="p-2 bg-amber-50 hover:bg-amber-100 rounded-lg" title="Edit"><Edit2 className="w-4 h-4 text-amber-600" /></button>}{(role === 'owner' || perms.editProducts) && <button onClick={() => { if (confirm('Delete?')) setProducts(products.filter(x => x.id !== (p && p.id))) }} className="p-2 bg-red-50 hover:bg-red-100 rounded-lg" title="Delete"><Trash2 className="w-4 h-4 text-red-500" /></button>}</div></div></div>); })}</ErrorBoundary>{filtered.length === 0 && <div className="md:col-span-2 p-8 text-center text-slate-400 bg-white rounded-xl border border-slate-200">No products found.</div>}</div><Pagination totalItems={filtered.length} itemsPerPage={50} currentPage={currentPage} setCurrentPage={setCurrentPage} /></div></>) : <div className="bg-white rounded-2xl p-6 border border-slate-200">Orders content placeholder</div>}
+            <div>{role === 'owner' && filtered.length > 0 && (<div className="flex items-center gap-2 mb-3 px-1"><input type="checkbox" onChange={handleSelectAll} checked={selectedIds.size === filtered.length && filtered.length > 0} className="w-4 h-4 text-emerald-600 bg-gray-100 border-gray-300 rounded focus:ring-emerald-500" /><span className="text-xs text-slate-500 font-medium">Select all ({filtered.length})</span></div>)}<div className="grid grid-cols-1 md:grid-cols-2 gap-3"><ErrorBoundary>{filtered.slice((currentPage - 1) * 50, currentPage * 50)?.map(p => { const safePrice = Number(p.price) || 0; const safeCost = Number(p.cost) || 0; const safeStock = Number(p.stock) || 0; const isEdit = editId === (p && p.id); if (isEdit) { return (<div key={(p && p.id)} className="bg-white rounded-2xl border-2 border-emerald-300 shadow-sm p-4 md:col-span-2"><div className="grid grid-cols-1 md:grid-cols-2 gap-3"><input className="input-field py-2 text-sm" placeholder="Name" value={editData.name} onChange={e => setEditData({ ...editData, name: e.target.value })} /><input className="input-field py-2 text-xs font-mono" placeholder="Barcode" value={editData.barcode || ''} onChange={e => setEditData({ ...editData, barcode: e.target.value })} />{(role === 'owner' || perms.editPriceAndCost) ? <input type="number" className="input-field py-2" placeholder="Price" value={editData.price ?? ''} onChange={e => setEditData({ ...editData, price: parseFloat(e.target.value) })} /> : <div className="py-2 text-slate-600">Ksh. {(Number(editData.price) || 0).toLocaleString()}</div>}{canViewCosts && ((role === 'owner' || perms.editPriceAndCost) ? <input type="number" className="input-field py-2" placeholder="Cost" value={editData.cost ?? ''} onChange={e => setEditData({ ...editData, cost: parseFloat(e.target.value) })} /> : <div className="py-2 text-slate-500">Cost: Ksh. {(Number(editData.cost) || 0).toLocaleString()}</div>)}<input type="number" className="input-field py-2" placeholder="Stock" value={editData.stock ?? ''} onChange={e => setEditData({ ...editData, stock: parseFloat(e.target.value) })} /><input className="input-field py-2" placeholder="Category" value={editData.category || ''} onChange={e => setEditData({ ...editData, category: e.target.value })} />{settings.trackExpiry !== false && <input type="month" className="input-field py-2" value={editData.expiryDate || ''} onChange={e => setEditData({ ...editData, expiryDate: e.target.value })} />}<div className="flex items-center gap-2"><input type="checkbox" id={`commodity-edit-${(p && p.id)}`} checked={!!editData.isCommodity} onChange={e => setEditData({ ...editData, isCommodity: e.target.checked })} className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500" /><label htmlFor={`commodity-edit-${(p && p.id)}`} className="text-xs font-medium">Commodity</label>{!!editData.isCommodity && (<select value={editData.unit || 'Kg'} onChange={e => setEditData({ ...editData, unit: e.target.value })} className="input-field py-1 text-xs w-20"><option value="Kg">Kg</option><option value="L">L</option></select>)}</div></div><div className="flex justify-end gap-2 mt-3"><button onClick={() => setEditId(null)} className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 text-sm font-medium flex items-center gap-1"><X className="w-4 h-4" /> Cancel</button><button onClick={() => { const updated = products?.map(x => x.id === editId ? { ...x, ...editData, unit: editData.isCommodity ? (editData.unit || 'Kg') : undefined } : x); setProducts(updated); toast.success('Updated'); setEditId(null); }} className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-sm font-medium flex items-center gap-1"><Check className="w-4 h-4" /> Save</button></div></div>); } return (<div key={(p && p.id)} className={`bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow p-4 flex ${p.expiryDate ? 'ring-1 ring-amber-100' : ''}`}><div className="w-2/5 flex flex-col justify-between pr-4 border-r border-dashed border-slate-200"><div>{role === 'owner' ? (<input type="checkbox" checked={selectedIds.has((p && p.id))} onChange={() => handleSelect((p && p.id))} className="w-5 h-5 text-emerald-600 bg-white border-slate-300 rounded-md focus:ring-emerald-500" />) : <div className="h-5"/>}</div><div className="flex-1 flex items-center"><div className="text-xl md:text-2xl font-extrabold text-emerald-600 leading-tight">Ksh. {safePrice.toLocaleString()}{p.isCommodity ? <span className="text-sm font-semibold">/{p.unit}</span> : ''}</div></div><div className="flex items-center gap-2"><span className={`px-3 py-1 rounded-full text-xs font-bold ${safeStock <= 5 ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>{safeStock} {p.isCommodity ? p.unit : 'left'}</span>{(role === 'owner' || perms.addStock) && <button onClick={() => { const q = prompt('Add Stock:'); if (q) addStock(p, parseFloat(q)) }} className="p-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg" title="Add Stock"><Plus className="w-4 h-4 text-slate-700" /></button>}</div></div><div className="w-3/5 pl-4 flex flex-col">{settings.trackExpiry !== false && p.expiryDate && (<div className="self-start mb-2"><span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-amber-50 text-amber-700 text-xs font-bold border border-amber-100"><Calendar className="w-3 h-3" /> Exp: {p.expiryDate}</span></div>)}<div className="text-base md:text-lg font-bold text-slate-900 leading-tight">{p.name}</div>{canViewCosts && <div className="text-sm text-slate-500 mt-1">Ksh. {safeCost.toLocaleString()}{p.isCommodity ? `/${p.unit}` : ''}</div>}{(p && p.category) && <div className="text-sm text-slate-500 mt-1">{(p && p.category)}</div>}{p.barcode && <div className="text-[10px] text-slate-400 font-mono mt-1 truncate">{p.barcode}</div>}<div className="border-t border-slate-100 mt-auto pt-3 flex gap-1.5 flex-wrap"><button onClick={() => addToCart(p)} className="p-2 bg-emerald-50 hover:bg-emerald-100 rounded-lg" title="Add to Cart"><ShoppingCart className="w-4 h-4 text-emerald-600" /></button>{(role === 'owner' || perms.addStock) && <button onClick={() => { const q = prompt('Add Stock:'); if (q) addStock(p, parseFloat(q)) }} className="p-2 bg-blue-50 hover:bg-blue-100 rounded-lg" title="Add Stock"><PackagePlus className="w-4 h-4 text-blue-600" /></button>}{settings.showScan && (role === 'owner' || perms.editProducts) && <button onClick={() => { setUpdateId((p && p.id)); setScannerMode('update'); }} className="p-2 bg-indigo-50 hover:bg-indigo-100 rounded-lg" title="Update Barcode"><QrCode className="w-4 h-4 text-indigo-600" /></button>}{(role === 'owner' || perms.editProducts) && <button onClick={() => { setEditId((p && p.id)); setEditData({ ...p }) }} className="p-2 bg-amber-50 hover:bg-amber-100 rounded-lg" title="Edit"><Edit2 className="w-4 h-4 text-amber-600" /></button>}{(role === 'owner' || perms.editProducts) && <button onClick={() => { if (confirm('Delete?')) setProducts(products?.filter(x => x.id !== (p && p.id))) }} className="p-2 bg-red-50 hover:bg-red-100 rounded-lg" title="Delete"><Trash2 className="w-4 h-4 text-red-500" /></button>}</div></div></div>); })}</ErrorBoundary>{filtered.length === 0 && <div className="md:col-span-2 p-8 text-center text-slate-400 bg-white rounded-xl border border-slate-200">No products found.</div>}</div><Pagination totalItems={filtered.length} itemsPerPage={50} currentPage={currentPage} setCurrentPage={setCurrentPage} /></div></>) : <div className="bg-white rounded-2xl p-6 border border-slate-200">Orders content placeholder</div>}
           </div>
           <div className="lg:col-span-1 sticky top-8 order-1 lg:order-2"><CartPanel cart={cart} onUpdate={updateCartItem} onRemove={removeCartItem} onClear={clearCart} onCheckout={() => setIsCheckingOut(true)} currentUser={currentUser} /></div>
         </div>
@@ -2126,7 +2137,7 @@ const PrintableStockForm = ({ products, settings }) => {
               <span style={{ textAlign: 'right' }}>Total</span>
             </div>
             <div style={{ borderTop: '1px dashed #000', margin: '5px 0' }}></div>
-            {shoppingListItems.map((item, index) => (
+            {shoppingListItems?.map((item, index) => (
               <div key={index} style={{ display: 'grid', gridTemplateColumns: '3fr 1fr 1.5fr', gap: '4px' }}>
                 <span>{item.name}</span>
                 <span style={{ textAlign: 'center' }}>{item.qty}</span>
@@ -2136,7 +2147,7 @@ const PrintableStockForm = ({ products, settings }) => {
             <div style={{ borderTop: '1px dashed #000', margin: '5px 0' }}></div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
               <span>GRAND TOTAL:</span>
-              <span>{shoppingListItems.reduce((acc, item) => acc + (Number(item.cost || 0) * item.qty), 0).toLocaleString()}</span>
+              <span>{shoppingListItems?.reduce((acc, item) => acc + (Number(item.cost || 0) * item.qty), 0).toLocaleString()}</span>
             </div>
             <div style={{ borderTop: '1px dashed #000', margin: '5px 0' }}></div>
           </div>,
@@ -2160,7 +2171,7 @@ const PrintableStockForm = ({ products, settings }) => {
                     </tr>
                   </thead>
                   <tbody>
-                    {shoppingListItems.map((item, idx) => (
+                    {shoppingListItems?.map((item, idx) => (
                       <tr key={item.id} className="border-b">
                         <td className="p-3 font-medium text-slate-800">{item.name}</td>
                         <td className="p-3 text-right text-slate-600">{Number(item.cost || 0).toLocaleString()}</td>
@@ -2180,7 +2191,7 @@ const PrintableStockForm = ({ products, settings }) => {
                     <tr className="bg-emerald-50">
                       <td colSpan="3" className="p-3 text-right font-bold text-slate-700">Grand Total:</td>
                       <td className="p-3 text-right font-bold text-emerald-700">
-                        {shoppingListItems.reduce((acc, item) => acc + (Number(item.cost || 0) * item.qty), 0).toLocaleString()}
+                        {shoppingListItems?.reduce((acc, item) => acc + (Number(item.cost || 0) * item.qty), 0).toLocaleString()}
                       </td>
                     </tr>
                   </tfoot>
@@ -2213,7 +2224,7 @@ const PrintableStockForm = ({ products, settings }) => {
       useEffect(() => { setCurrentPage(1); }, [searchVal, dateRange]);
 
       const filteredStock = useMemo(() => {
-        return stockHistory.filter(s => {
+        return stockHistory?.filter(s => {
           const matchSearch = (s.name || '').toLowerCase().includes(searchVal.toLowerCase()) || s.cashierName?.toLowerCase().includes(searchVal.toLowerCase());
           const dDate = new Date(s.date).toISOString().split('T')[0];
           const matchStart = !dateRange.start || dDate >= dateRange.start;
@@ -2232,7 +2243,7 @@ const PrintableStockForm = ({ products, settings }) => {
           </div>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-          <table className="w-full text-sm text-left"><thead className="bg-slate-50 text-slate-500 font-medium"><tr><th className="p-3">Date</th><th className="p-3">Product</th><th className="p-3">Added by</th><th className="p-3 text-right">Qty Added</th></tr></thead><tbody className="divide-y divide-slate-100">{filteredStock.slice((currentPage - 1) * 50, currentPage * 50).map((s, i) => <tr key={i} className="hover:bg-slate-50"><td className="p-3 text-slate-500">{new Date(s.date).toLocaleString()}</td><td className="p-3 font-medium text-slate-800">{s.name}</td><td className="p-3 text-slate-500">{s.cashierName}</td><td className="p-3 text-right font-bold text-blue-600">+{s.qty}</td></tr>)}</tbody></table>
+          <table className="w-full text-sm text-left"><thead className="bg-slate-50 text-slate-500 font-medium"><tr><th className="p-3">Date</th><th className="p-3">Product</th><th className="p-3">Added by</th><th className="p-3 text-right">Qty Added</th></tr></thead><tbody className="divide-y divide-slate-100">{filteredStock.slice((currentPage - 1) * 50, currentPage * 50)?.map((s, i) => <tr key={i} className="hover:bg-slate-50"><td className="p-3 text-slate-500">{new Date(s.date).toLocaleString()}</td><td className="p-3 font-medium text-slate-800">{s.name}</td><td className="p-3 text-slate-500">{s.cashierName}</td><td className="p-3 text-right font-bold text-blue-600">+{s.qty}</td></tr>)}</tbody></table>
           <Pagination totalItems={filteredStock.length} itemsPerPage={50} currentPage={currentPage} setCurrentPage={setCurrentPage} />
         </div>
       </div>);
@@ -2249,7 +2260,7 @@ const PrintableStockForm = ({ products, settings }) => {
 
       useEffect(() => {
         if (debtCart.length > 0) {
-          const total = debtCart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+          const total = debtCart?.reduce((sum, item) => sum + (item.price * item.quantity), 0);
           setForm(f => ({ ...f, amount: total.toString(), item: '' }));
         }
       }, [debtCart]);
@@ -2259,7 +2270,7 @@ const PrintableStockForm = ({ products, settings }) => {
         
         let tempProducts = [...products];
         for (const item of debtCart) {
-          const pIndex = tempProducts.findIndex(p => (p && p.id) === item.id);
+          const pIndex = tempProducts?.findIndex(p => (p && p.id) === item.id);
           if (pIndex === -1) return toast.error("Product not found: " + item.name);
           if (tempProducts[pIndex].stock < item.quantity) return toast.error(`Not enough stock for ${item.name}. Need ${item.quantity}, have ${tempProducts[pIndex].stock}`);
           tempProducts[pIndex] = { ...tempProducts[pIndex], stock: tempProducts[pIndex].stock - item.quantity };
@@ -2270,7 +2281,7 @@ const PrintableStockForm = ({ products, settings }) => {
           id: dId, 
           name: form.name, 
           contact: form.phone, 
-          product: debtCart.length > 0 ? debtCart.map(i => `${i.name} (x${i.quantity})`).join(', ') : form.item, 
+          product: debtCart.length > 0 ? debtCart?.map(i => `${i.name} (x${i.quantity})`).join(', ') : form.item, 
           cart: debtCart,
           amount: parseFloat(form.amount) || 0, 
           dateAdded: new Date().toISOString().split('T')[0] 
@@ -2281,7 +2292,7 @@ const PrintableStockForm = ({ products, settings }) => {
 
         const newSales = [];
         if (debtCart.length > 0) {
-          debtCart.forEach(item => {
+          debtCart?.forEach(item => {
             newSales.push({
               id: 'debt_' + dId + '_' + item.id,
               name: item.name,
@@ -2326,14 +2337,14 @@ const PrintableStockForm = ({ products, settings }) => {
         window.open(`https://wa.me/${d.contact.replace(/\D/g, '').replace(/^0/, '254')}?text=${encodeURIComponent(msg)}`, '_blank'); 
       };
 
-      const filteredProducts = useMemo(() => productSearch ? (products || []).filter(p => p.name && typeof p.name === 'string' && (p.name || '').toLowerCase().includes(productSearch.toLowerCase())) : [], [products, productSearch]);
+      const filteredProducts = useMemo(() => productSearch ? (products || [])?.filter(p => p.name && typeof p.name === 'string' && (p.name || '').toLowerCase().includes(productSearch.toLowerCase())) : [], [products, productSearch]);
 
       const handleMarkPaid = (d) => {
         if (confirm('Mark Paid?')) { 
           setPaidDebts([...paidDebts, { ...d, datePaid: new Date().toISOString().split('T')[0] }]); 
-          setDebts(debts.filter(x => x.id !== d.id)); 
+          setDebts(debts?.filter(x => x.id !== d.id)); 
           
-          const updatedSales = (salesHistory || []).map(s => {
+          const updatedSales = (salesHistory || [])?.map(s => {
             if (s.id.startsWith('debt_' + d.id)) {
               return { ...s, name: s.productName || s.name.replace('Debt: ', ''), paymentMethod: 'cash', date: new Date().toISOString() };
             }
@@ -2359,15 +2370,15 @@ const PrintableStockForm = ({ products, settings }) => {
                 <input className="input-field mt-1 text-xs" placeholder="Search product..." value={productSearch} onChange={e => setProductSearch(e.target.value)} />
                 {filteredProducts.length > 0 && (
                   <div className="absolute z-10 w-full bg-white border rounded-lg mt-1 max-h-40 overflow-auto shadow-lg">
-                    {filteredProducts.map(p => (
+                    {filteredProducts?.map(p => (
                       <div key={(p && p.id)} onClick={() => { 
                         const qtyStr = prompt(`Enter quantity for ${p.name}`, '1');
                         if (qtyStr !== null) {
                           const qty = parseInt(qtyStr);
                           if (!isNaN(qty) && qty > 0) {
-                            const existing = debtCart.find(item => item.id === (p && p.id));
+                            const existing = debtCart?.find(item => item.id === (p && p.id));
                             if (existing) {
-                              setDebtCart(debtCart.map(item => item.id === (p && p.id) ? { ...item, quantity: item.quantity + qty } : item));
+                              setDebtCart(debtCart?.map(item => item.id === (p && p.id) ? { ...item, quantity: item.quantity + qty } : item));
                             } else {
                               setDebtCart([...debtCart, { ...p, quantity: qty }]);
                             }
@@ -2387,12 +2398,12 @@ const PrintableStockForm = ({ products, settings }) => {
               {debtCart.length > 0 && (
                 <div className="col-span-full border rounded-lg bg-slate-50 p-3 space-y-2 mt-2">
                   <h4 className="text-xs font-bold text-slate-500 uppercase">Selected Products</h4>
-                  {debtCart.map((item, idx) => (
+                  {debtCart?.map((item, idx) => (
                     <div key={idx} className="flex justify-between items-center text-sm bg-white p-2 rounded border">
                       <span className="font-medium text-slate-700">{item.name} <span className="text-slate-400 font-normal">x{item.quantity}</span></span>
                       <div className="flex items-center gap-3">
                         <span className="font-bold text-slate-700">Ksh. {(item.price * item.quantity).toLocaleString()}</span>
-                        <button onClick={() => setDebtCart(debtCart.filter((_, i) => i !== idx))} className="text-red-400 hover:text-red-600 p-1 rounded hover:bg-red-50">âœ•</button>
+                        <button onClick={() => setDebtCart(debtCart?.filter((_, i) => i !== idx))} className="text-red-400 hover:text-red-600 p-1 rounded hover:bg-red-50">âœ•</button>
                       </div>
                     </div>
                   ))}
@@ -2406,7 +2417,7 @@ const PrintableStockForm = ({ products, settings }) => {
                 <tr><th className="p-4">Customer</th><th className="p-4">Items</th><th className="p-4">Amount</th><th className="p-4">Date</th><th className="p-4 text-right">Actions</th></tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {(viewHistory ? paidDebts : debts).slice((currentPage - 1) * 50, currentPage * 50).map(d => (
+                {(viewHistory ? paidDebts : debts).slice((currentPage - 1) * 50, currentPage * 50)?.map(d => (
                   <tr key={d.id} className="hover:bg-slate-50">
                     <td className="p-4"><div>{d.name}</div><div className="text-xs text-slate-400">{d.contact}</div></td>
                     <td className="p-4 text-slate-500 max-w-xs truncate" title={d.product || '-'}>{d.product || '-'}</td>
@@ -2419,7 +2430,7 @@ const PrintableStockForm = ({ products, settings }) => {
                           <button onClick={() => remind(d)} className="p-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100" title="WhatsApp Reminder"><MessageCircle className="w-4 h-4" /></button>
                         </>
                       ) : <span className="px-2 py-1 bg-emerald-100 text-emerald-700 text-xs rounded-full font-bold">PAID</span>}
-                      <button onClick={() => { if (confirm('Delete?')) viewHistory ? setPaidDebts(paidDebts.filter(x => x.id !== d.id)) : setDebts(debts.filter(x => x.id !== d.id)) }} className="p-2 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>
+                      <button onClick={() => { if (confirm('Delete?')) viewHistory ? setPaidDebts(paidDebts?.filter(x => x.id !== d.id)) : setDebts(debts?.filter(x => x.id !== d.id)) }} className="p-2 text-red-400 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>
                     </td>
                   </tr>
                 ))}
@@ -2436,7 +2447,7 @@ const PrintableStockForm = ({ products, settings }) => {
       const [desc, setDesc] = useState(''); const [amt, setAmt] = useState('');
       const [currentPage, setCurrentPage] = useState(1);
       const add = (quickDesc) => { const d = quickDesc || desc; if (!d || !amt) return toast.error('Required fields'); setExpenses([...expenses, { id: crypto.randomUUID(), desc: d, amount: parseFloat(amt), date: new Date().toISOString().split('T')[0], timestamp: new Date().toISOString(), cashierName: currentUser?.name || 'Unknown' }]); setDesc(''); setAmt(''); toast.success('Expense added'); };
-      return (<div className="grid md:grid-cols-3 gap-6"><div className="md:col-span-2 space-y-6"><div><h2 className="text-2xl font-bold text-slate-800">Expenses</h2><p className="text-slate-500">Track shop spending</p></div><div className="card flex flex-col sm:flex-row gap-3 bg-white"><input className="input-field flex-1 w-full min-w-[200px]" placeholder="Description" value={desc} onChange={e => setDesc(e.target.value)} /><input className="input-field w-full sm:w-32" type="number" placeholder="Amount" value={amt} onChange={e => setAmt(e.target.value)} /><button onClick={() => add()} className="btn-primary w-full sm:w-auto px-6">Add</button></div><div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden"><table className="w-full text-left text-sm"><thead className="bg-slate-50 text-slate-500 border-b"><tr><th className="p-4">Description</th><th className="p-4">Amount</th><th className="p-4">Date</th><th className="p-4 text-right">Action</th></tr></thead><tbody className="divide-y divide-slate-100">{expenses.slice((currentPage - 1) * 50, currentPage * 50).map(e => (<tr key={e.id}><td className="p-4 text-slate-800">{e.desc}</td><td className="p-4 font-bold text-slate-700">Ksh. {e.amount.toLocaleString()}</td><td className="p-4 text-slate-500">{e.date}</td><td className="p-4 text-right"><button onClick={() => { if (confirm('Delete?')) setExpenses(expenses.filter(x => x.id !== e.id)) }} className="text-red-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button></td></tr>))}{expenses.length === 0 && <tr><td colSpan={4} className="p-8 text-center text-slate-400">No expenses recorded.</td></tr>}</tbody></table><Pagination totalItems={expenses.length} itemsPerPage={50} currentPage={currentPage} setCurrentPage={setCurrentPage} /></div></div><div className="bg-slate-100 rounded-xl p-5 h-fit"><h3 className="font-bold mb-4 flex gap-2 items-center text-slate-700"><Zap className="w-4 h-4 text-amber-500" /> Quick Add</h3><div className="grid grid-cols-2 gap-2">{['Transport', 'Lunch', 'Airtime', 'Packaging'].map(o => <button key={o} onClick={() => { setDesc(o); document.querySelector('input[placeholder="Amount"]').focus() }} className="p-3 bg-white rounded-lg shadow-sm text-sm text-slate-600 hover:text-emerald-600 font-medium transition-colors">{o}</button>)}</div></div></div>);
+      return (<div className="grid md:grid-cols-3 gap-6"><div className="md:col-span-2 space-y-6"><div><h2 className="text-2xl font-bold text-slate-800">Expenses</h2><p className="text-slate-500">Track shop spending</p></div><div className="card flex flex-col sm:flex-row gap-3 bg-white"><input className="input-field flex-1 w-full min-w-[200px]" placeholder="Description" value={desc} onChange={e => setDesc(e.target.value)} /><input className="input-field w-full sm:w-32" type="number" placeholder="Amount" value={amt} onChange={e => setAmt(e.target.value)} /><button onClick={() => add()} className="btn-primary w-full sm:w-auto px-6">Add</button></div><div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden"><table className="w-full text-left text-sm"><thead className="bg-slate-50 text-slate-500 border-b"><tr><th className="p-4">Description</th><th className="p-4">Amount</th><th className="p-4">Date</th><th className="p-4 text-right">Action</th></tr></thead><tbody className="divide-y divide-slate-100">{expenses.slice((currentPage - 1) * 50, currentPage * 50)?.map(e => (<tr key={e.id}><td className="p-4 text-slate-800">{e.desc}</td><td className="p-4 font-bold text-slate-700">Ksh. {e.amount.toLocaleString()}</td><td className="p-4 text-slate-500">{e.date}</td><td className="p-4 text-right"><button onClick={() => { if (confirm('Delete?')) setExpenses(expenses?.filter(x => x.id !== e.id)) }} className="text-red-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button></td></tr>))}{expenses.length === 0 && <tr><td colSpan={4} className="p-8 text-center text-slate-400">No expenses recorded.</td></tr>}</tbody></table><Pagination totalItems={expenses.length} itemsPerPage={50} currentPage={currentPage} setCurrentPage={setCurrentPage} /></div></div><div className="bg-slate-100 rounded-xl p-5 h-fit"><h3 className="font-bold mb-4 flex gap-2 items-center text-slate-700"><Zap className="w-4 h-4 text-amber-500" /> Quick Add</h3><div className="grid grid-cols-2 gap-2">{['Transport', 'Lunch', 'Airtime', 'Packaging']?.map(o => <button key={o} onClick={() => { setDesc(o); document.querySelector('input[placeholder="Amount"]').focus() }} className="p-3 bg-white rounded-lg shadow-sm text-sm text-slate-600 hover:text-emerald-600 font-medium transition-colors">{o}</button>)}</div></div></div>);
     };
 
     const CustomerPanel = ({ customers, setCustomers, currentUser }) => {
@@ -2450,10 +2461,10 @@ const PrintableStockForm = ({ products, settings }) => {
       const handleSave = () => {
         if (!form.name || !form.phone) return toast.error("Name and Phone are required.");
         if (editingId) {
-          setCustomers(customers.map(c => c.id === editingId ? { ...c, ...form } : c));
+          setCustomers(customers?.map(c => c.id === editingId ? { ...c, ...form } : c));
           toast.success("Customer updated.");
         } else {
-          if (customers.some(c => c.phone === form.phone)) {
+          if (customers?.some(c => c.phone === form.phone)) {
             return toast.error("A customer with this phone number already exists.");
           }
           setCustomers([...customers, { ...form, id: crypto.randomUUID() }]);
@@ -2470,12 +2481,12 @@ const PrintableStockForm = ({ products, settings }) => {
 
       const handleDelete = (id) => {
         if (confirm("Are you sure you want to delete this customer?")) {
-          setCustomers(customers.filter(c => c.id !== id));
+          setCustomers(customers?.filter(c => c.id !== id));
           toast.success("Customer deleted.");
         }
       };
 
-      const filteredCustomers = useMemo(() => customers.filter(c =>
+      const filteredCustomers = useMemo(() => customers?.filter(c =>
         (c.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         c.phone.includes(searchTerm)
       ), [customers, searchTerm]);
@@ -2509,7 +2520,7 @@ const PrintableStockForm = ({ products, settings }) => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredCustomers.slice((currentPage - 1) * 50, currentPage * 50).map(c => (
+                  {filteredCustomers.slice((currentPage - 1) * 50, currentPage * 50)?.map(c => (
                     <tr key={c.id} className="hover:bg-slate-50">
                       <td className="p-4 font-medium text-slate-800">{c.name}</td>
                       <td className="p-4 text-slate-500">{c.phone}</td>
@@ -2556,9 +2567,9 @@ const PrintableStockForm = ({ products, settings }) => {
         }
       }, []);
 
-      const revenue = salesHistory.reduce((a, b) => b.paymentMethod !== 'debt' ? a + (b.finalPrice || b.price * b.quantity) : a, 0); const expenseTotal = expenses.reduce((a, b) => a + b.amount, 0); const profit = salesHistory.reduce((a, b) => b.paymentMethod !== 'debt' ? a + b.profit : a, 0) - expenseTotal; const debtTotal = debts.reduce((a, b) => a + b.amount, 0); const stockVal = products.reduce((a, b) => a + (b.cost * b.stock), 0); const totalProducts = products.length; const totalStock = products.reduce((a, b) => a + b.stock, 0);
-      const salesByProduct = [...salesHistory].reduce((acc, sale) => { if (sale.paymentMethod !== 'debt') { acc[sale.name] = (acc[sale.name] || 0) + sale.quantity; } return acc; }, {});
-      const productChartData = Object.keys(salesByProduct).map(name => ({ name, quantity: salesByProduct[name] })).sort((a, b) => b.quantity - a.quantity);
+      const revenue = salesHistory?.reduce((a, b) => b.paymentMethod !== 'debt' ? a + (b.finalPrice || b.price * b.quantity) : a, 0); const expenseTotal = expenses?.reduce((a, b) => a + b.amount, 0); const profit = salesHistory?.reduce((a, b) => b.paymentMethod !== 'debt' ? a + b.profit : a, 0) - expenseTotal; const debtTotal = debts?.reduce((a, b) => a + b.amount, 0); const stockVal = products?.reduce((a, b) => a + (b.cost * b.stock), 0); const totalProducts = products.length; const totalStock = products?.reduce((a, b) => a + b.stock, 0);
+      const salesByProduct = [...salesHistory]?.reduce((acc, sale) => { if (sale.paymentMethod !== 'debt') { acc[sale.name] = (acc[sale.name] || 0) + sale.quantity; } return acc; }, {});
+      const productChartData = Object.keys(salesByProduct)?.map(name => ({ name, quantity: salesByProduct[name] }))?.sort((a, b) => b.quantity - a.quantity);
 
       const clear = (type) => { if (confirm(`Clear all ${type} history? This cannot be undone.`)) { if (type === 'sales') setSalesHistory([]); if (type === 'stock') setStockHistory([]); toast.success('Cleared'); } };
 
@@ -2568,24 +2579,24 @@ const PrintableStockForm = ({ products, settings }) => {
         const end = dateRange.end ? new Date(dateRange.end) : null;
         if (start) start.setHours(0, 0, 0, 0);
         if (end) end.setHours(23, 59, 59, 999);
-        return items.filter(item => {
+        return items?.filter(item => {
           const itemDate = new Date(item.date);
           return (!start || itemDate >= start) && (!end || itemDate <= end);
         });
       };
 
       const filteredSales = useMemo(() => {
-        return filterByDate([...salesHistory], salesDateRange).reverse().filter(s => (s.name || '').toLowerCase().includes(salesSearch.toLowerCase()));
+        return filterByDate([...salesHistory], salesDateRange).reverse()?.filter(s => (s.name || '').toLowerCase().includes(salesSearch.toLowerCase()));
       }, [salesHistory, salesDateRange, salesSearch]);
 
       const filteredStock = useMemo(() => {
-        return filterByDate([...stockHistory], stockDateRange).reverse().filter(s => (s.name || '').toLowerCase().includes(stockSearch.toLowerCase()));
+        return filterByDate([...stockHistory], stockDateRange).reverse()?.filter(s => (s.name || '').toLowerCase().includes(stockSearch.toLowerCase()));
       }, [stockHistory, stockDateRange, stockSearch]);
 
       // NEW CALCULATIONS for owner's date-filtered sales summary
-      const ownerDailySalesTotal = useMemo(() => filteredSales.reduce((sum, s) => s.paymentMethod !== 'debt' ? sum + s.finalPrice : sum, 0), [filteredSales]);
-      const ownerDailyProfitTotal = useMemo(() => filteredSales.reduce((sum, s) => s.paymentMethod !== 'debt' ? sum + s.profit : sum, 0), [filteredSales]);
-      const ownerDailyStockSold = useMemo(() => filteredSales.reduce((sum, s) => s.paymentMethod !== 'debt' ? sum + s.quantity : sum, 0), [filteredSales]);
+      const ownerDailySalesTotal = useMemo(() => filteredSales?.reduce((sum, s) => s.paymentMethod !== 'debt' ? sum + s.finalPrice : sum, 0), [filteredSales]);
+      const ownerDailyProfitTotal = useMemo(() => filteredSales?.reduce((sum, s) => s.paymentMethod !== 'debt' ? sum + s.profit : sum, 0), [filteredSales]);
+      const ownerDailyStockSold = useMemo(() => filteredSales?.reduce((sum, s) => s.paymentMethod !== 'debt' ? sum + s.quantity : sum, 0), [filteredSales]);
 
 
       // Removed generatePDF and handleDownloadPdf from here
@@ -2647,8 +2658,8 @@ const PrintableStockForm = ({ products, settings }) => {
           </div>
         </div>
         <div className="flex gap-4 flex-wrap"><button onClick={() => setView('sales')} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3 rounded-xl shadow-lg shadow-emerald-100 font-medium"><FileText className="w-5 h-5" /> View Sales History</button><button onClick={() => setView('stock')} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-xl shadow-lg shadow-blue-100 font-medium"><ClipboardList className="w-5 h-5" /> View Stock History</button></div>
-        {view === 'sales' && (<HistoryModal title="Sales History" searchVal={salesSearch} onSearchChange={setSalesSearch} dateRange={salesDateRange} onDateChange={setSalesDateRange} onClose={() => setView('none')} onClear={() => clear('sales')} canDelete={currentUser?.role === 'owner'}><table className="w-full text-sm text-left"><thead className="bg-slate-50 text-slate-500 font-medium sticky top-0"><tr><th className="p-3">Date</th><th className="p-3">Product</th><th className="p-3">Qty</th><th className="p-3">Method</th><th className="p-3">Cashier</th><th className="p-3 text-right">Discount</th><th className="p-3 text-right">Total</th>{currentUser?.role === 'owner' && <th className="p-3 text-right">Action</th>}</tr></thead><tbody className="divide-y divide-slate-100">{filteredSales.slice((salesCurrentPage - 1) * 50, salesCurrentPage * 50).map(s => <tr key={s.id} className="hover:bg-slate-50"><td className="p-3 text-slate-500">{new Date(s.date).toLocaleString()}</td><td className="p-3 font-medium text-slate-800">{s.name}</td><td className="p-3">{s.quantity}</td><td className="p-3 uppercase text-xs font-bold text-slate-500">{s.paymentMethod}</td><td className="p-3 text-slate-500">{s.cashierName}</td><td className="p-3 text-right font-medium text-red-500">{s.discount?.value > 0 ? (s.discount?.type === 'percent' ? `${s.discount.value}%` : `Ksh. ${parseFloat(s.discount.value).toLocaleString()}`) : '-'}</td><td className="p-3 text-right font-bold text-emerald-600">Ksh. {(s.finalPrice).toLocaleString()}</td>{currentUser?.role === 'owner' && (<td className="p-3 text-right"><button onClick={() => onCancelSale(s.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg disabled:text-slate-300 disabled:hover:bg-transparent" title="Cancel Sale" disabled={s.paymentMethod === 'debt'}><Trash2 className="w-4 h-4" /></button></td>)}</tr>)}</tbody></table><Pagination totalItems={filteredSales.length} itemsPerPage={50} currentPage={salesCurrentPage} setCurrentPage={setSalesCurrentPage} /></HistoryModal>)}
-        {view === 'stock' && (<HistoryModal title="Stock History" searchVal={stockSearch} onSearchChange={setStockSearch} dateRange={stockDateRange} onDateChange={setStockDateRange} onClose={() => setView('none')} onClear={() => clear('stock')}><table className="w-full text-sm text-left"><thead className="bg-slate-50 text-slate-500 font-medium sticky top-0"><tr><th className="p-3">Date</th><th className="p-3">Product</th><th className="p-3">Added by</th><th className="p-3 text-right">Qty Added</th></tr></thead><tbody className="divide-y divide-slate-100">{filteredStock.slice((stockCurrentPage - 1) * 50, stockCurrentPage * 50).map((s, i) => <tr key={i} className="hover:bg-slate-50"><td className="p-3 text-slate-500">{new Date(s.date).toLocaleString()}</td><td className="p-3 font-medium text-slate-800">{s.name}</td><td className="p-3 text-slate-500">{s.cashierName}</td><td className="p-3 text-right font-bold text-blue-600">+{s.qty}</td></tr>)}</tbody></table><Pagination totalItems={filteredStock.length} itemsPerPage={50} currentPage={stockCurrentPage} setCurrentPage={setStockCurrentPage} /></HistoryModal>)}
+        {view === 'sales' && (<HistoryModal title="Sales History" searchVal={salesSearch} onSearchChange={setSalesSearch} dateRange={salesDateRange} onDateChange={setSalesDateRange} onClose={() => setView('none')} onClear={() => clear('sales')} canDelete={currentUser?.role === 'owner'}><table className="w-full text-sm text-left"><thead className="bg-slate-50 text-slate-500 font-medium sticky top-0"><tr><th className="p-3">Date</th><th className="p-3">Product</th><th className="p-3">Qty</th><th className="p-3">Method</th><th className="p-3">Cashier</th><th className="p-3 text-right">Discount</th><th className="p-3 text-right">Total</th>{currentUser?.role === 'owner' && <th className="p-3 text-right">Action</th>}</tr></thead><tbody className="divide-y divide-slate-100">{filteredSales.slice((salesCurrentPage - 1) * 50, salesCurrentPage * 50)?.map(s => <tr key={s.id} className="hover:bg-slate-50"><td className="p-3 text-slate-500">{new Date(s.date).toLocaleString()}</td><td className="p-3 font-medium text-slate-800">{s.name}</td><td className="p-3">{s.quantity}</td><td className="p-3 uppercase text-xs font-bold text-slate-500">{s.paymentMethod}</td><td className="p-3 text-slate-500">{s.cashierName}</td><td className="p-3 text-right font-medium text-red-500">{s.discount?.value > 0 ? (s.discount?.type === 'percent' ? `${s.discount.value}%` : `Ksh. ${parseFloat(s.discount.value).toLocaleString()}`) : '-'}</td><td className="p-3 text-right font-bold text-emerald-600">Ksh. {(s.finalPrice).toLocaleString()}</td>{currentUser?.role === 'owner' && (<td className="p-3 text-right"><button onClick={() => onCancelSale(s.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg disabled:text-slate-300 disabled:hover:bg-transparent" title="Cancel Sale" disabled={s.paymentMethod === 'debt'}><Trash2 className="w-4 h-4" /></button></td>)}</tr>)}</tbody></table><Pagination totalItems={filteredSales.length} itemsPerPage={50} currentPage={salesCurrentPage} setCurrentPage={setSalesCurrentPage} /></HistoryModal>)}
+        {view === 'stock' && (<HistoryModal title="Stock History" searchVal={stockSearch} onSearchChange={setStockSearch} dateRange={stockDateRange} onDateChange={setStockDateRange} onClose={() => setView('none')} onClear={() => clear('stock')}><table className="w-full text-sm text-left"><thead className="bg-slate-50 text-slate-500 font-medium sticky top-0"><tr><th className="p-3">Date</th><th className="p-3">Product</th><th className="p-3">Added by</th><th className="p-3 text-right">Qty Added</th></tr></thead><tbody className="divide-y divide-slate-100">{filteredStock.slice((stockCurrentPage - 1) * 50, stockCurrentPage * 50)?.map((s, i) => <tr key={i} className="hover:bg-slate-50"><td className="p-3 text-slate-500">{new Date(s.date).toLocaleString()}</td><td className="p-3 font-medium text-slate-800">{s.name}</td><td className="p-3 text-slate-500">{s.cashierName}</td><td className="p-3 text-right font-bold text-blue-600">+{s.qty}</td></tr>)}</tbody></table><Pagination totalItems={filteredStock.length} itemsPerPage={50} currentPage={stockCurrentPage} setCurrentPage={setStockCurrentPage} /></HistoryModal>)}
         {currentUser?.role === 'owner' && (
           <div className="mt-8 flex justify-center border-t border-slate-200 pt-6 gap-4">
             <button 
@@ -2687,7 +2698,7 @@ const PrintableStockForm = ({ products, settings }) => {
 
                 const tableColumn = ["#", "Product Name", "Category", "Barcode", "Cost", "Price", "Physical Stock"];
 
-                chunks.forEach((chunk, chunkIdx) => {
+                chunks?.forEach((chunk, chunkIdx) => {
                   if (chunkIdx > 0) {
                     doc.addPage();
                   }
@@ -2708,7 +2719,7 @@ const PrintableStockForm = ({ products, settings }) => {
                   const dateWidth = doc.getStringUnitWidth(dateText) * 10 / doc.internal.scaleFactor;
                   doc.text(dateText, (pageWidth - dateWidth) / 2, 36);
 
-                  const tableRows = chunk.map((p, i) => {
+                  const tableRows = chunk?.map((p, i) => {
                     const absoluteIndex = chunkIdx * itemsPerPage + i + 1;
                     return [
                       absoluteIndex,
@@ -2770,16 +2781,16 @@ const PrintableStockForm = ({ products, settings }) => {
         const safeProducts = products || [];
         const safeCustomers = customers || [];
 
-        const userNames = new Set(safeUsers.map(u => u.name).filter(Boolean));
-        safeSales.forEach(s => s.cashierName && userNames.add(s.cashierName));
-        safeStock.forEach(s => s.cashierName && userNames.add(s.cashierName));
-        safeExpenses.forEach(e => e.cashierName && userNames.add(e.cashierName));
-        safeProducts.forEach(p => p.cashierName && userNames.add(p.cashierName));
-        safeCustomers.forEach(c => c.cashierName && userNames.add(c.cashierName));
+        const userNames = new Set(safeUsers?.map(u => u.name)?.filter(Boolean));
+        safeSales?.forEach(s => s.cashierName && userNames.add(s.cashierName));
+        safeStock?.forEach(s => s.cashierName && userNames.add(s.cashierName));
+        safeExpenses?.forEach(e => e.cashierName && userNames.add(e.cashierName));
+        safeProducts?.forEach(p => p.cashierName && userNames.add(p.cashierName));
+        safeCustomers?.forEach(c => c.cashierName && userNames.add(c.cashierName));
 
         // Filter events by selected month
         const filterByMonth = (items, dateField = 'timestamp') => {
-          return items.filter(item => {
+          return items?.filter(item => {
             const d = new Date(item[dateField] || item.date || item.dateAdded);
             if (isNaN(d.getTime())) return false;
             const itemMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -2787,32 +2798,32 @@ const PrintableStockForm = ({ products, settings }) => {
           });
         };
 
-        const mSales = filterByMonth(safeSales, 'date').filter(s => s.paymentMethod !== 'debt');
+        const mSales = filterByMonth(safeSales, 'date')?.filter(s => s.paymentMethod !== 'debt');
         const mStock = filterByMonth(safeStock, 'date');
         const mExpenses = filterByMonth(safeExpenses, 'timestamp');
         const mProducts = filterByMonth(safeProducts, 'timestamp');
         const mCustomers = filterByMonth(safeCustomers, 'timestamp');
 
-        const result = Array.from(userNames).map(name => {
-          const userSales = mSales.filter(s => s.cashierName === name);
-          const productsSold = userSales.reduce((acc, s) => acc + s.quantity, 0);
-          const profitGenerated = userSales.reduce((acc, s) => acc + s.profit, 0);
+        const result = Array.from(userNames)?.map(name => {
+          const userSales = mSales?.filter(s => s.cashierName === name);
+          const productsSold = userSales?.reduce((acc, s) => acc + s.quantity, 0);
+          const profitGenerated = userSales?.reduce((acc, s) => acc + s.profit, 0);
 
-          const userStock = mStock.filter(s => s.cashierName === name);
-          const stockAdded = userStock.reduce((acc, s) => acc + s.qty, 0);
+          const userStock = mStock?.filter(s => s.cashierName === name);
+          const stockAdded = userStock?.reduce((acc, s) => acc + s.qty, 0);
 
-          const userExpenses = mExpenses.filter(e => e.cashierName === name);
+          const userExpenses = mExpenses?.filter(e => e.cashierName === name);
           const expensesCount = userExpenses.length;
-          const expensesAmount = userExpenses.reduce((acc, e) => acc + e.amount, 0);
+          const expensesAmount = userExpenses?.reduce((acc, e) => acc + e.amount, 0);
 
-          const userProducts = mProducts.filter(p => p.cashierName === name);
+          const userProducts = mProducts?.filter(p => p.cashierName === name);
           const productsAddedCount = userProducts.length;
 
-          const userCustomers = mCustomers.filter(c => c.cashierName === name);
+          const userCustomers = mCustomers?.filter(c => c.cashierName === name);
           const customersAddedCount = userCustomers.length;
 
           // Find role if currently active user
-          const currentUserInfo = safeUsers.find(u => u.name === name);
+          const currentUserInfo = safeUsers?.find(u => u.name === name);
           const role = currentUserInfo ? currentUserInfo.role : 'legacy/deleted';
 
           return {
@@ -2830,7 +2841,7 @@ const PrintableStockForm = ({ products, settings }) => {
         });
 
         // Sort: Owner first, then by profit desc
-        return result.sort((a, b) => {
+        return result?.sort((a, b) => {
           if (a.role === 'owner' && b.role !== 'owner') return -1;
           if (b.role === 'owner' && a.role !== 'owner') return 1;
           return b.profitGenerated - a.profitGenerated;
@@ -2856,7 +2867,7 @@ const PrintableStockForm = ({ products, settings }) => {
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {stats.map(s => (
+            {stats?.map(s => (
               <div key={s.name} className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
                 <div className={`p-4 ${s.role === 'owner' ? 'bg-purple-50 border-b border-purple-100' : 'bg-blue-50 border-b border-blue-100'} flex justify-between items-center`}>
                   <div className="flex items-center gap-3">
@@ -2911,8 +2922,8 @@ const PrintableStockForm = ({ products, settings }) => {
             </div>
           )}
           {selectedStaffForSales && (() => {
-             const staffStat = stats.find(s => s.name === selectedStaffForSales);
-             const salesToDisplay = staffStat ? [...staffStat.userSales].sort((a, b) => new Date(b.date) - new Date(a.date)) : [];
+             const staffStat = stats?.find(s => s.name === selectedStaffForSales);
+             const salesToDisplay = staffStat ? [...staffStat.userSales]?.sort((a, b) => new Date(b.date) - new Date(a.date)) : [];
              return (
                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
                  <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl relative flex flex-col max-h-[80vh]">
@@ -2934,7 +2945,7 @@ const PrintableStockForm = ({ products, settings }) => {
                          </tr>
                        </thead>
                        <tbody className="divide-y divide-slate-100">
-                         {salesToDisplay.map(sale => (
+                         {salesToDisplay?.map(sale => (
                            <tr key={sale.id} className="hover:bg-slate-50">
                              <td className="p-3 text-slate-500">{new Date(sale.date).toLocaleString()}</td>
                              <td className="p-3 font-medium text-slate-800">{sale.name}</td>
@@ -2968,12 +2979,12 @@ const PrintableStockForm = ({ products, settings }) => {
       const [orderItems, setOrderItems] = useState([]);
       const [initialSupplierId, setInitialSupplierId] = useState(null);
       const [currentPage, setCurrentPage] = useState(1);
-      const lowStockProducts = useMemo(() => products.filter(p => p.stock <= 5), [products]);
+      const lowStockProducts = useMemo(() => products?.filter(p => p.stock <= 5), [products]);
 
       const handleSave = () => {
         if (!form.name || !form.phone) return toast.error("Name and Phone are required.");
         if (editingId) {
-          setSuppliers(suppliers.map(s => s.id === editingId ? { ...s, name: form.name, phone: form.phone, productIds: form.productIds } : s));
+          setSuppliers(suppliers?.map(s => s.id === editingId ? { ...s, name: form.name, phone: form.phone, productIds: form.productIds } : s));
           toast.success("Supplier updated.");
         } else {
           setSuppliers([...suppliers, { ...form, id: crypto.randomUUID() }]);
@@ -2988,10 +2999,10 @@ const PrintableStockForm = ({ products, settings }) => {
         setForm({ name: supplier.name, phone: supplier.phone, productIds: supplier.productIds || [] });
       };
 
-      const handleDelete = (id) => { if (confirm("Delete this supplier?")) setSuppliers(suppliers.filter(s => s.id !== id)); };
+      const handleDelete = (id) => { if (confirm("Delete this supplier?")) setSuppliers(suppliers?.filter(s => s.id !== id)); };
 
       const handleCreateOrder = (items) => {
-        const perfectSupplier = suppliers.find(s => items.every(item => (s.productIds || []).includes(item.id)));
+        const perfectSupplier = suppliers?.find(s => items?.every(item => (s.productIds || []).includes(item.id)));
         setInitialSupplierId(perfectSupplier ? perfectSupplier.id : null);
         setOrderItems(items);
         setShowOrderModal(true);
@@ -3009,8 +3020,8 @@ const PrintableStockForm = ({ products, settings }) => {
                 <div className="md:col-span-2">
                   <label className="text-sm font-medium text-slate-600 mb-1 block">Products Supplied</label>
                   <div className="p-2 border rounded-lg min-h-[60px] bg-slate-50 flex flex-wrap gap-2">
-                    {form.productIds.length > 0 ? form.productIds.map(id => {
-                      const product = products.find(p => (p && p.id) === id);
+                    {form.productIds.length > 0 ? form.productIds?.map(id => {
+                      const product = products?.find(p => (p && p.id) === id);
                       return product ? <span key={id} className="px-2 py-1 bg-emerald-100 text-emerald-800 text-xs font-medium rounded-full">{product.name}</span> : null;
                     }) : <span className="text-slate-400 text-sm p-2">No products selected</span>}
                   </div>
@@ -3024,13 +3035,13 @@ const PrintableStockForm = ({ products, settings }) => {
                 <button onClick={handleSave} className="btn-primary px-6 py-2.5">{editingId ? 'Save Changes' : 'Add Supplier'}</button>
               </div>
             </div>
-            <div className="card bg-white p-0 overflow-hidden"><div className="p-5"><h3 className="font-semibold text-slate-700">Supplier List</h3></div><div className="overflow-x-auto"><table className="w-full text-sm text-left"><thead className="bg-slate-50 text-slate-500"><tr><th className="p-4">Name</th><th className="p-4">Contact</th><th className="p-4">Products</th><th className="p-4 text-right">Actions</th></tr></thead><tbody className="divide-y">{suppliers.slice((currentPage - 1) * 50, currentPage * 50).map(s => (<tr key={s.id}><td className="p-4 font-medium text-slate-800">{s.name}</td><td className="p-4 text-slate-500">{s.phone}</td><td className="p-4 text-slate-500">{(s.productIds || []).slice(0, 3).map(id => { const p = products.find(prod => prod.id === id); return p ? <div key={id} className="text-xs">â€¢ {p.name}</div> : null; })} {(s.productIds || []).length > 3 && <div className="text-xs text-slate-400 mt-1">+{s.productIds.length - 3} more</div>}</td><td className="p-4 flex justify-end gap-2"><button onClick={() => handleEdit(s)} className="p-2 text-amber-600 hover:bg-amber-50 rounded-lg"><Edit2 className="w-4 h-4" /></button><button onClick={() => handleDelete(s.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button></td></tr>))}</tbody></table><Pagination totalItems={suppliers.length} itemsPerPage={50} currentPage={currentPage} setCurrentPage={setCurrentPage} /></div></div>
+            <div className="card bg-white p-0 overflow-hidden"><div className="p-5"><h3 className="font-semibold text-slate-700">Supplier List</h3></div><div className="overflow-x-auto"><table className="w-full text-sm text-left"><thead className="bg-slate-50 text-slate-500"><tr><th className="p-4">Name</th><th className="p-4">Contact</th><th className="p-4">Products</th><th className="p-4 text-right">Actions</th></tr></thead><tbody className="divide-y">{suppliers.slice((currentPage - 1) * 50, currentPage * 50)?.map(s => (<tr key={s.id}><td className="p-4 font-medium text-slate-800">{s.name}</td><td className="p-4 text-slate-500">{s.phone}</td><td className="p-4 text-slate-500">{(s.productIds || []).slice(0, 3)?.map(id => { const p = products?.find(prod => prod.id === id); return p ? <div key={id} className="text-xs">â€¢ {p.name}</div> : null; })} {(s.productIds || []).length > 3 && <div className="text-xs text-slate-400 mt-1">+{s.productIds.length - 3} more</div>}</td><td className="p-4 flex justify-end gap-2"><button onClick={() => handleEdit(s)} className="p-2 text-amber-600 hover:bg-amber-50 rounded-lg"><Edit2 className="w-4 h-4" /></button><button onClick={() => handleDelete(s.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button></td></tr>))}</tbody></table><Pagination totalItems={suppliers.length} itemsPerPage={50} currentPage={currentPage} setCurrentPage={setCurrentPage} /></div></div>
           </div>
           <div className="card bg-white">
             <h3 className="font-semibold text-slate-700 mb-4 flex items-center gap-2"><Bell className="w-5 h-5 text-red-500" /> Low Stock Items</h3>
             {lowStockProducts.length > 0 ? (<>
               <div className="space-y-2 max-h-96 overflow-y-auto pr-2">
-                {lowStockProducts.map(p => (
+                {lowStockProducts?.map(p => (
                   <div key={(p && p.id)} className="flex justify-between items-center p-2 bg-red-50/50 rounded-lg text-sm">
                     <span className="font-medium text-slate-700">{p.name}</span>
                     <span className="font-bold text-red-600">{p.stock} left</span>
@@ -3048,7 +3059,7 @@ const PrintableStockForm = ({ products, settings }) => {
 
     
     const CashierSettingsPanel = ({ currentUser, settings, setSettings }) => {
-      const cashier = getSafeCashiers(settings).find(c => c.id === currentUser.id);
+      const cashier = getSafeCashiers(settings)?.find(c => c.id === currentUser.id);
       const [loginMethod, setLoginMethod] = useState(cashier?.password ? 'password' : 'pin');
       const [newPin, setNewPin] = useState(cashier?.pin || '');
       const [newPassword, setNewPassword] = useState(cashier?.password || '');
@@ -3058,7 +3069,7 @@ const PrintableStockForm = ({ products, settings }) => {
         if (loginMethod === 'pin' && newPin.length !== 4) return toast.error('PIN must be 4 digits.');
         if (loginMethod === 'password' && newPassword.length < 4) return toast.error('Password must be at least 4 characters.');
         
-        const updatedCashiers = getSafeCashiers(settings).map(c => 
+        const updatedCashiers = getSafeCashiers(settings)?.map(c => 
           c.id === currentUser.id 
             ? { ...c, pin: loginMethod === 'pin' ? newPin : '', password: loginMethod === 'password' ? newPassword : '' } 
             : c
@@ -3120,7 +3131,7 @@ const PrintableStockForm = ({ products, settings }) => {
         try {
           const raw = localStorage.getItem('db_session');
           if (raw) {
-            const parsed = JSON.parse(raw);
+            const parsed = safeJSONParse(raw);
             if (parsed && parsed.url && parsed.token) {
               setDbUrl(parsed.url);
               setDbToken(parsed.token);
@@ -3403,7 +3414,7 @@ const PrintableStockForm = ({ products, settings }) => {
         }
 
         setStatus('Saving to Cloud Registry...');
-        const creds = JSON.parse(raw);
+        const creds = safeJSONParse(raw);
         const ok = await uploadToCloudRegistry(cleanHandle, pwd, creds);
         if (ok) {
           toast.success('Recovery key saved securely!');
@@ -3469,7 +3480,7 @@ const PrintableStockForm = ({ products, settings }) => {
       const generateCashierQR = (cashier) => {
         const raw = localStorage.getItem('db_session');
         if (!raw) return toast.error('No database connection active.');
-        const { url, token } = JSON.parse(raw);
+        const { url, token } = safeJSONParse(raw);
         
         const payload = {
           url,
@@ -3486,10 +3497,10 @@ const PrintableStockForm = ({ products, settings }) => {
       };
 
       const update = (k, v) => { setSettings({ ...settings, [k]: v }); };
-      const addCashier = () => { const { name, pin, role, permissions } = cashierForm; if (!name || !pin || pin.length !== 4) return toast.error('Name and 4-digit PIN required.'); if (settings.ownerPin === pin || getSafeCashiers(settings).some(c => c.pin === pin)) return toast.error('PIN is already in use.'); const newCashiers = [...getSafeCashiers(settings), { id: crypto.randomUUID(), name, pin, role: role || 'cashier', permissions }]; setSettings({ ...settings, cashiers: newCashiers }); setCashierForm({ name: '', pin: '', role: 'cashier', permissions: { ...DEFAULT_PERMISSIONS } }); toast.success('Staff added.'); };
-      const removeCashier = (id) => { if (!confirm('Are you sure?')) return; setSettings({ ...settings, cashiers: getSafeCashiers(settings).filter(c => c.id !== id) }); toast.success('Staff removed.'); };
+      const addCashier = () => { const { name, pin, role, permissions } = cashierForm; if (!name || !pin || pin.length !== 4) return toast.error('Name and 4-digit PIN required.'); if (settings.ownerPin === pin || getSafeCashiers(settings)?.some(c => c.pin === pin)) return toast.error('PIN is already in use.'); const newCashiers = [...getSafeCashiers(settings), { id: crypto.randomUUID(), name, pin, role: role || 'cashier', permissions }]; setSettings({ ...settings, cashiers: newCashiers }); setCashierForm({ name: '', pin: '', role: 'cashier', permissions: { ...DEFAULT_PERMISSIONS } }); toast.success('Staff added.'); };
+      const removeCashier = (id) => { if (!confirm('Are you sure?')) return; setSettings({ ...settings, cashiers: getSafeCashiers(settings)?.filter(c => c.id !== id) }); toast.success('Staff removed.'); };
       const handleEditCashier = (cashier) => { setEditingCashierId(cashier.id); setEditingCashierData({ name: cashier.name, pin: cashier.pin, role: cashier.role || 'cashier', permissions: cashier.permissions || { ...DEFAULT_PERMISSIONS } }); };
-      const handleSaveCashier = (id) => { const { name, pin } = editingCashierData; if (!name || !pin || pin.length !== 4) return toast.error('Name and 4-digit PIN required.'); if (settings.ownerPin === pin || getSafeCashiers(settings).some(c => c.pin === pin && c.id !== id)) return toast.error('PIN is already in use.'); const updatedCashiers = getSafeCashiers(settings).map(c => c.id === id ? { ...c, ...editingCashierData } : c); setSettings({ ...settings, cashiers: updatedCashiers }); setEditingCashierId(null); toast.success('Staff updated.'); };
+      const handleSaveCashier = (id) => { const { name, pin } = editingCashierData; if (!name || !pin || pin.length !== 4) return toast.error('Name and 4-digit PIN required.'); if (settings.ownerPin === pin || getSafeCashiers(settings)?.some(c => c.pin === pin && c.id !== id)) return toast.error('PIN is already in use.'); const updatedCashiers = getSafeCashiers(settings)?.map(c => c.id === id ? { ...c, ...editingCashierData } : c); setSettings({ ...settings, cashiers: updatedCashiers }); setEditingCashierId(null); toast.success('Staff updated.'); };
       const handleSoundUpload = (e) => { const file = e.target.files?.[0]; if (file) { const r = new FileReader(); r.onload = ev => { if (ev.target?.result) { update('scanSound', ev.target.result); new Audio(ev.target.result).play(); } }; r.readAsDataURL(file); } };
 
       return (<div className="max-w-3xl space-y-6 pb-20"><h2 className="text-2xl font-bold text-slate-800">Shop Settings</h2><div className="card space-y-6 bg-white p-6">
@@ -3512,7 +3523,7 @@ const PrintableStockForm = ({ products, settings }) => {
             <div className="mb-4 p-3 bg-white border border-slate-200 rounded-lg">
               <h4 className="text-xs font-semibold text-slate-500 mb-2 uppercase">Permissions for new staff</h4>
               <div className="flex flex-wrap gap-3">
-                {Object.keys(DEFAULT_PERMISSIONS).map(key => (
+                {Object.keys(DEFAULT_PERMISSIONS)?.map(key => (
                   <label key={key} className="flex items-center gap-1.5 text-sm text-slate-700">
                     <input type="checkbox" checked={cashierForm.permissions[key]} onChange={e => setCashierForm({ ...cashierForm, permissions: { ...cashierForm.permissions, [key]: e.target.checked } })} className="w-4 h-4 text-emerald-600 rounded" />
                     {PERMISSION_LABELS[key]}
@@ -3522,7 +3533,7 @@ const PrintableStockForm = ({ products, settings }) => {
             </div>
           )}
           <div className="mt-4 space-y-2">
-            {getSafeCashiers(settings).map(cashier => editingCashierId === cashier.id ? (
+            {getSafeCashiers(settings)?.map(cashier => editingCashierId === cashier.id ? (
               <div key={cashier.id} className="bg-white p-3 rounded-lg border shadow-sm">
                 <div className="flex items-center gap-2 mb-3">
                   <input className="input-field py-1" value={editingCashierData.name} onChange={e => setEditingCashierData({ ...editingCashierData, name: e.target.value })} placeholder="Name" />
@@ -3538,7 +3549,7 @@ const PrintableStockForm = ({ products, settings }) => {
                   <div className="pt-2 border-t border-slate-100">
                     <h4 className="text-xs font-semibold text-slate-500 mb-2 uppercase">Edit Permissions</h4>
                     <div className="flex flex-wrap gap-3">
-                      {Object.keys(DEFAULT_PERMISSIONS).map(key => (
+                      {Object.keys(DEFAULT_PERMISSIONS)?.map(key => (
                         <label key={key} className="flex items-center gap-1.5 text-sm text-slate-700">
                           <input type="checkbox" checked={editingCashierData.permissions[key]} onChange={e => setEditingCashierData({ ...editingCashierData, permissions: { ...editingCashierData.permissions, [key]: e.target.checked } })} className="w-4 h-4 text-emerald-600 rounded" />
                           {PERMISSION_LABELS[key]}
@@ -3561,10 +3572,10 @@ const PrintableStockForm = ({ products, settings }) => {
                 </div>
                 {cashier.role !== 'owner' && (
                   <div className="flex flex-wrap gap-1">
-                    {Object.keys(cashier.permissions || {}).filter(k => cashier.permissions[k]).map(k => (
+                    {Object.keys(cashier.permissions || {})?.filter(k => cashier.permissions[k])?.map(k => (
                       <span key={k} className="px-2 py-0.5 bg-emerald-50 text-emerald-700 text-xs rounded-full">{PERMISSION_LABELS[k] || k}</span>
                     ))}
-                    {Object.keys(cashier.permissions || {}).filter(k => cashier.permissions[k]).length === 0 && <span className="px-2 py-0.5 bg-slate-50 text-slate-400 text-xs rounded-full">Basic Access Only</span>}
+                    {Object.keys(cashier.permissions || {})?.filter(k => cashier.permissions[k]).length === 0 && <span className="px-2 py-0.5 bg-slate-50 text-slate-400 text-xs rounded-full">Basic Access Only</span>}
                   </div>
                 )}
               </div>
@@ -3588,7 +3599,7 @@ const PrintableStockForm = ({ products, settings }) => {
             <button onClick={() => { update('notificationsEnabled', settings.notificationsEnabled === false ? true : false) }} className={`w-12 h-6 rounded-full relative transition-colors flex-shrink-0 ml-4 ${settings.notificationsEnabled !== false ? 'bg-emerald-500' : 'bg-slate-200'}`}><div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all ${settings.notificationsEnabled !== false ? 'left-7' : 'left-1'}`}></div></button>
           </div>
         </div>
-        <div className="pt-4 border-t border-slate-100"><div className="flex justify-between mb-3"><span className="text-sm font-medium text-slate-700">Scan Sound</span>{settings.scanSound && <button onClick={() => { update('scanSound', null) }} className="text-xs text-red-500 hover:underline flex items-center gap-1"><X className="w-3 h-3" /> Disable</button>}</div><div className="grid grid-cols-2 gap-3 mb-4">{PRESET_SOUNDS.map(s => <button key={s.id} onClick={() => { update('scanSound', s.url); new Audio(s.url).play() }} className={`p-3 text-xs border rounded-lg font-medium flex items-center gap-2 ${settings.scanSound === s.url ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'text-slate-600 hover:border-emerald-300'}`}>{settings.scanSound === s.url ? <Volume2 className="w-4 h-4" /> : <Music className="w-4 h-4 text-slate-400" />} {s.name}</button>)}</div><label className="flex items-center gap-3 p-4 border border-dashed border-slate-300 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors"><div className="p-2 bg-slate-100 rounded-full text-slate-500"><Upload className="w-5 h-5" /></div><div><p className="text-sm font-medium text-slate-700">Custom Sound</p><p className="text-xs text-slate-500">Upload MP3/WAV</p></div><input type="file" hidden accept="audio/*" onChange={handleSoundUpload} /></label></div>
+        <div className="pt-4 border-t border-slate-100"><div className="flex justify-between mb-3"><span className="text-sm font-medium text-slate-700">Scan Sound</span>{settings.scanSound && <button onClick={() => { update('scanSound', null) }} className="text-xs text-red-500 hover:underline flex items-center gap-1"><X className="w-3 h-3" /> Disable</button>}</div><div className="grid grid-cols-2 gap-3 mb-4">{PRESET_SOUNDS?.map(s => <button key={s.id} onClick={() => { update('scanSound', s.url); new Audio(s.url).play() }} className={`p-3 text-xs border rounded-lg font-medium flex items-center gap-2 ${settings.scanSound === s.url ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'text-slate-600 hover:border-emerald-300'}`}>{settings.scanSound === s.url ? <Volume2 className="w-4 h-4" /> : <Music className="w-4 h-4 text-slate-400" />} {s.name}</button>)}</div><label className="flex items-center gap-3 p-4 border border-dashed border-slate-300 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors"><div className="p-2 bg-slate-100 rounded-full text-slate-500"><Upload className="w-5 h-5" /></div><div><p className="text-sm font-medium text-slate-700">Custom Sound</p><p className="text-xs text-slate-500">Upload MP3/WAV</p></div><input type="file" hidden accept="audio/*" onChange={handleSoundUpload} /></label></div>
 
         <div className="bg-red-50 p-4 rounded-lg border border-red-200 mt-6 pt-4 border-t">
           <h3 className="font-semibold text-red-800 flex items-center gap-2"><Trash2 className="w-4 h-4" /> Monthly Data Reset Schedule</h3>
@@ -3710,14 +3721,14 @@ const PrintableStockForm = ({ products, settings }) => {
         const end = dateRange.end ? new Date(dateRange.end) : null;
         if (start) start.setHours(0, 0, 0, 0);
         if (end) end.setHours(23, 59, 59, 999);
-        return items.filter(item => {
+        return items?.filter(item => {
           const itemDate = new Date(item.date);
           return (!start || itemDate >= start) && (!end || itemDate <= end);
         });
       };
 
       const filteredSales = useMemo(() => {
-        return filterByDate([...salesHistory], salesDateRange).reverse().filter(s => (s.name || '').toLowerCase().includes(salesSearch.toLowerCase()));
+        return filterByDate([...salesHistory], salesDateRange).reverse()?.filter(s => (s.name || '').toLowerCase().includes(salesSearch.toLowerCase()));
       }, [salesHistory, salesDateRange, salesSearch]);
 
       return (
@@ -3761,7 +3772,7 @@ const PrintableStockForm = ({ products, settings }) => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredSales.slice((currentPage - 1) * 50, currentPage * 50).map(s => (
+                  {filteredSales.slice((currentPage - 1) * 50, currentPage * 50)?.map(s => (
                     <tr key={s.id} className="hover:bg-slate-50">
                       <td className="p-3 text-slate-500">{new Date(s.date).toLocaleString()}</td>
                       <td className="p-3 font-medium text-slate-800">{s.name}</td>
@@ -3837,7 +3848,7 @@ id,name,qty,barcode,date,cashierName
         let currentSection = null;
         let headers = {};
 
-        csvText.split('\n').forEach(line => {
+        csvText.split('\n')?.forEach(line => {
           line = line.trim();
           if (line.startsWith('#')) {
             const sectionNameRaw = line.substring(1).trim();
@@ -3859,10 +3870,10 @@ id,name,qty,barcode,date,cashierName
             const parts = line.split(',');
             if (!headers[currentSection]) {
               // This is the header row for the current section
-              headers[currentSection] = parts.map(h => h.trim());
+              headers[currentSection] = parts?.map(h => h.trim());
             } else {
               const record = {};
-              headers[currentSection].forEach((header, index) => {
+              headers[currentSection]?.forEach((header, index) => {
                 record[header] = parts[index] ? parts[index].trim() : '';
               });
               sections[currentSection].push(record);
@@ -3886,7 +3897,7 @@ id,name,qty,barcode,date,cashierName
         let stockCount = 0;
 
         // Process Products
-        sections.PRODUCTS.forEach(p => {
+        sections.PRODUCTS?.forEach(p => {
           if (p.name && p.price && p.stock) {
             imported.products.push({
               id: (p && p.id) || crypto.randomUUID(),
@@ -3910,7 +3921,7 @@ id,name,qty,barcode,date,cashierName
         });
 
         // Process Sales History
-        sections.SALES_HISTORY.forEach(s => {
+        sections.SALES_HISTORY?.forEach(s => {
           if (s.id && s.productId && s.name && s.quantity && s.finalPrice && s.date) {
             imported.salesHistory.push({
               id: s.id,
@@ -3941,7 +3952,7 @@ id,name,qty,barcode,date,cashierName
         });
 
         // Process Expenses
-        sections.EXPENSES.forEach(e => {
+        sections.EXPENSES?.forEach(e => {
           if (e.id && e.desc && e.amount && e.date) {
             imported.expenses.push({
               id: e.id,
@@ -3956,7 +3967,7 @@ id,name,qty,barcode,date,cashierName
         });
 
         // Process Debts
-        sections.DEBTS.forEach(d => {
+        sections.DEBTS?.forEach(d => {
           if (d.id && d.name && d.amount && d.dateAdded) {
             imported.debts.push({
               id: d.id,
@@ -3973,7 +3984,7 @@ id,name,qty,barcode,date,cashierName
         });
 
         // Process Paid Debts
-        sections.PAID_DEBTS.forEach(pd => {
+        sections.PAID_DEBTS?.forEach(pd => {
           if (pd.id && pd.name && pd.amount && pd.dateAdded && pd.datePaid) {
             imported.paidDebts.push({
               id: pd.id,
@@ -3991,7 +4002,7 @@ id,name,qty,barcode,date,cashierName
         });
 
         // Process Stock History
-        sections.STOCK_HISTORY.forEach(sh => {
+        sections.STOCK_HISTORY?.forEach(sh => {
           if (sh.id && sh.name && sh.qty && sh.date && sh.cashierName) {
             imported.stockHistory.push({
               id: sh.id,
@@ -4098,14 +4109,14 @@ id,name,qty,barcode,date,cashierName
         const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
         const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-        return products.map(product => {
-          const productSales = salesHistory.filter(s => s.productId === product.id);
+        return products?.map(product => {
+          const productSales = salesHistory?.filter(s => s.productId === product.id);
 
           let sales30d = 0;
           let sales7d = 0;
           let firstSaleDate = now;
 
-          productSales.forEach(sale => {
+          productSales?.forEach(sale => {
             const saleDate = new Date(sale.date);
             if (saleDate < firstSaleDate) firstSaleDate = saleDate;
             if (saleDate >= thirtyDaysAgo) sales30d += sale.quantity;
@@ -4138,7 +4149,7 @@ id,name,qty,barcode,date,cashierName
             trend,
             confidence
           };
-        }).filter(p => (p.name || '').toLowerCase().includes(searchTerm.toLowerCase()));
+        })?.filter(p => (p.name || '').toLowerCase().includes(searchTerm.toLowerCase()));
       }, [products, salesHistory, searchTerm]);
 
       return (
@@ -4175,7 +4186,7 @@ id,name,qty,barcode,date,cashierName
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {forecastData.map(p => {
+                  {forecastData?.map(p => {
                     const isLowStock = p.daysRemaining <= 7;
                     return (
                       <tr key={(p && p.id)} className="hover:bg-slate-50">
@@ -4220,11 +4231,11 @@ id,name,qty,barcode,date,cashierName
     const MONTH_NAMES_GLOBAL = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
     const computeMonthlyAggregates = (salesHistory) => {
-      const validSales = (salesHistory || []).filter(s => s.paymentMethod !== 'debt');
+      const validSales = (salesHistory || [])?.filter(s => s.paymentMethod !== 'debt');
       if (validSales.length === 0) return [];
-      const dates = validSales.map(s => new Date(s.date).getTime()).filter(t => !isNaN(t));
+      const dates = validSales?.map(s => new Date(s.date).getTime())?.filter(t => !isNaN(t));
       if (dates.length === 0) return [];
-      const minDate = new Date(dates.reduce((a, b) => Math.min(a, b), dates[0]));
+      const minDate = new Date(dates?.reduce((a, b) => Math.min(a, b), dates[0]));
       const maxDate = new Date();
       const months = [];
       let y = minDate.getFullYear(), m = minDate.getMonth();
@@ -4233,9 +4244,9 @@ id,name,qty,barcode,date,cashierName
         months.push({ year: y, month: m, label: `${MONTH_NAMES_GLOBAL[m]} ${y}`, profit: 0, quantity: 0, transactions: 0 });
         m++; if (m > 11) { m = 0; y++; }
       }
-      validSales.forEach(s => {
+      validSales?.forEach(s => {
         const d = new Date(s.date);
-        const idx = months.findIndex(b => b.year === d.getFullYear() && b.month === d.getMonth());
+        const idx = months?.findIndex(b => b.year === d.getFullYear() && b.month === d.getMonth());
         if (idx > -1) {
           months[idx].profit += s.profit || 0;
           months[idx].quantity += s.quantity || 0;
@@ -4261,28 +4272,28 @@ id,name,qty,barcode,date,cashierName
         let buckets = allMonthlyBuckets;
         if (viewFilter === 'thisYear') {
           const thisYear = new Date().getFullYear();
-          buckets = buckets.filter(b => b.year === thisYear);
+          buckets = buckets?.filter(b => b.year === thisYear);
         } else if (viewFilter === 'custom' && customStart) {
           const start = new Date(customStart);
           const end = customEnd ? new Date(customEnd) : new Date();
-          buckets = buckets.filter(b => {
+          buckets = buckets?.filter(b => {
             const bDate = new Date(b.year, b.month, 1);
             const endOfMonth = new Date(b.year, b.month + 1, 0);
             return endOfMonth >= start && bDate <= end;
           });
         }
-        return buckets.map(b => ({ ...b, value: metric === 'profit' ? b.profit : b.quantity }));
+        return buckets?.map(b => ({ ...b, value: metric === 'profit' ? b.profit : b.quantity }));
       }, [allMonthlyBuckets, metric, viewFilter, customStart, customEnd]);
 
-      const maxValue = useMemo(() => Math.max(...monthlyData.map(d => d.value), 1), [monthlyData]);
+      const maxValue = useMemo(() => Math.max(...monthlyData?.map(d => d.value), 1), [monthlyData]);
 
       const summaryStats = useMemo(() => {
-        const totalProfit = allMonthlyBuckets.reduce((a, b) => a + b.profit, 0);
-        const totalQuantity = allMonthlyBuckets.reduce((a, b) => a + b.quantity, 0);
+        const totalProfit = allMonthlyBuckets?.reduce((a, b) => a + b.profit, 0);
+        const totalQuantity = allMonthlyBuckets?.reduce((a, b) => a + b.quantity, 0);
         const monthCount = allMonthlyBuckets.length || 1;
-        const nonZero = allMonthlyBuckets.filter(b => b.profit > 0 || b.quantity > 0);
-        const bestMonth = allMonthlyBuckets.reduce((best, b) => !best || b.profit > best.profit ? b : best, null);
-        const worstMonth = nonZero.reduce((worst, b) => !worst || b.profit < worst.profit ? b : worst, null);
+        const nonZero = allMonthlyBuckets?.filter(b => b.profit > 0 || b.quantity > 0);
+        const bestMonth = allMonthlyBuckets?.reduce((best, b) => !best || b.profit > best.profit ? b : best, null);
+        const worstMonth = nonZero?.reduce((worst, b) => !worst || b.profit < worst.profit ? b : worst, null);
         return {
           totalProfit,
           totalQuantity,
@@ -4319,9 +4330,9 @@ id,name,qty,barcode,date,cashierName
       const hasData = allMonthlyBuckets.length > 0;
       const usingSnapshot = salesHistory.length === 0 && hasData;
 
-      const chartBest = monthlyData.length > 0 ? monthlyData.reduce((b, m) => m.value > (b?.value || 0) ? m : b, null) : null;
-      const chartNonZero = monthlyData.filter(m => m.value > 0);
-      const chartWorst = chartNonZero.length > 0 ? chartNonZero.reduce((w, m) => m.value < (w?.value ?? Infinity) ? m : w, null) : null;
+      const chartBest = monthlyData.length > 0 ? monthlyData?.reduce((b, m) => m.value > (b?.value || 0) ? m : b, null) : null;
+      const chartNonZero = monthlyData?.filter(m => m.value > 0);
+      const chartWorst = chartNonZero.length > 0 ? chartNonZero?.reduce((w, m) => m.value < (w?.value ?? Infinity) ? m : w, null) : null;
 
       return (
         <div className="space-y-6 pb-20">
@@ -4360,7 +4371,7 @@ id,name,qty,barcode,date,cashierName
               { label: 'Total Products Sold', value: Math.round(summaryStats.totalQuantity).toLocaleString(), color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-100' },
               { label: 'Avg Monthly Profit', value: `Ksh ${Math.round(summaryStats.avgMonthlyProfit).toLocaleString()}`, color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-100' },
               { label: 'Avg Monthly Qty Sold', value: Math.round(summaryStats.avgMonthlyQuantity).toLocaleString(), color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-100' },
-            ].map((card, i) => (
+            ]?.map((card, i) => (
               <div key={i} className={`p-4 rounded-xl border ${card.bg} ${card.border} shadow-sm`}>
                 <p className="text-xs text-slate-500 mb-1 leading-snug">{card.label}</p>
                 <p className={`text-base font-bold ${card.color} truncate`}>{card.value}</p>
@@ -4395,7 +4406,7 @@ id,name,qty,barcode,date,cashierName
               <div>
                 <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">View:</p>
                 <div className="flex items-center gap-2 flex-wrap">
-                  {[{ key: 'allTime', label: 'All Time' }, { key: 'thisYear', label: 'This Year' }, { key: 'custom', label: 'Custom Range' }].map(f => (
+                  {[{ key: 'allTime', label: 'All Time' }, { key: 'thisYear', label: 'This Year' }, { key: 'custom', label: 'Custom Range' }]?.map(f => (
                     <button
                       key={f.key}
                       onClick={() => setViewFilter(f.key)}
@@ -4444,7 +4455,7 @@ id,name,qty,barcode,date,cashierName
                   <YAxis tickFormatter={formatYAxis} tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} axisLine={false} width={55} />
                   <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(16,185,129,0.06)' }} />
                   <Bar dataKey="value" radius={[4, 4, 0, 0]} maxBarSize={52}>
-                    {monthlyData.map((entry, index) => {
+                    {monthlyData?.map((entry, index) => {
                       const isMax = entry.value === maxValue && entry.value > 0;
                       return <Cell key={`cell-${index}`} fill={isMax ? '#059669' : (metric === 'profit' ? '#10b981' : '#3b82f6')} fillOpacity={isMax ? 1 : 0.72} />;
                     })}
@@ -4474,7 +4485,7 @@ id,name,qty,barcode,date,cashierName
       const debtDays = Number(settings.notifyDebtDays ?? 5);
       const lowStock = Number(settings.notifyLowStock ?? 5);
       // Debts older than N days
-      debts.forEach(d => {
+      debts?.forEach(d => {
         const ts = d.dateAdded ? new Date(d.dateAdded).getTime() : (d.timestamp || null);
         if (!ts) return;
         const days = Math.floor((now - ts) / DAY);
@@ -4491,17 +4502,17 @@ id,name,qty,barcode,date,cashierName
       // Low stock on trending products (sold in last 30 days)
       const recentMs = now - 30 * DAY;
       const soldMap = {};
-      salesHistory.forEach(s => {
+      salesHistory?.forEach(s => {
         const t = s.timestamp ? new Date(s.timestamp).getTime() : 0;
         if (t < recentMs) return;
         const items = s.items || (s.productName ? [{ name: s.productName, quantity: s.quantity || 1 }] : []);
-        items.forEach(it => {
+        items?.forEach(it => {
           const key = (it.name || '').toLowerCase();
           if (!key) return;
           soldMap[key] = (soldMap[key] || 0) + Number(it.quantity || 1);
         });
       });
-      products.forEach(p => {
+      products?.forEach(p => {
         const qty = soldMap[(p.name || '').toLowerCase()] || 0;
         if (qty >= 3 && p.stock <= lowStock) {
           out.push({
@@ -4514,9 +4525,9 @@ id,name,qty,barcode,date,cashierName
         }
       });
       // Near-expiry products (this month or next)
-      products.forEach(p => {
+      products?.forEach(p => {
         if (!p.expiryDate) return;
-        const [y, m] = p.expiryDate.split('-').map(Number);
+        const [y, m] = p.expiryDate.split('-')?.map(Number);
         if (!y || !m) return;
         const exp = new Date(y, m - 1, 1).getTime();
         const daysToExp = Math.floor((exp - now) / DAY);
@@ -4534,7 +4545,7 @@ id,name,qty,barcode,date,cashierName
     };
 
     const NotificationCenter = ({ notifications, readMap, onMarkRead, onMarkAllRead, onClose, onOpenSettings }) => {
-      const sorted = [...notifications].sort((a, b) => (b.ts || 0) - (a.ts || 0));
+      const sorted = [...notifications]?.sort((a, b) => (b.ts || 0) - (a.ts || 0));
       const iconFor = (k) => k === 'debt' ? <Users className="w-4 h-4 text-rose-600" /> : k === 'lowstock' ? <Package className="w-4 h-4 text-amber-600" /> : <Calendar className="w-4 h-4 text-indigo-600" />;
       const bgFor = (k) => k === 'debt' ? 'bg-rose-50' : k === 'lowstock' ? 'bg-amber-50' : 'bg-indigo-50';
       return (
@@ -4553,7 +4564,7 @@ id,name,qty,barcode,date,cashierName
               {sorted.length === 0 && (
                 <div className="text-center text-slate-400 p-10 text-sm">You're all caught up.</div>
               )}
-              {sorted.map(n => {
+              {sorted?.map(n => {
                 const unread = !readMap[n.id];
                 return (
                   <div key={n.id} className={`p-3 rounded-lg border ${unread ? 'border-emerald-200 ' + bgFor(n.kind) : 'border-slate-100 bg-white'}`}>
@@ -4582,7 +4593,7 @@ id,name,qty,barcode,date,cashierName
       });
       // Wrap setTab so every navigation persists the chosen tab
       const setTab = (newTab) => { setTabRaw(newTab); try { localStorage.setItem('sb_active_tab', newTab); } catch {} };
-      const [products, setProducts] = useState([]); const [customers, setCustomers] = useState([]); const [debts, setDebts] = useState([]); const [paidDebts, setPaidDebts] = useState([]); const [expenses, setExpenses] = useState([]); const [salesHistory, setSalesHistory] = useState([]); const [stockHistory, setStockHistory] = useState([]); const [showCalc, setShowCalc] = useState(false); const [showMenu, setShowMenu] = useState(false); const [showNotif, setShowNotif] = useState(false); const [readNotifs, setReadNotifs] = useState(() => { try { return JSON.parse(localStorage.getItem('sb_read_notifs') || '{}'); } catch { return {}; } }); const [monthlySnapshots, setMonthlySnapshots] = useState([]); const [cart, setCart] = useState([]);
+      const [products, setProducts] = useState([]); const [customers, setCustomers] = useState([]); const [debts, setDebts] = useState([]); const [paidDebts, setPaidDebts] = useState([]); const [expenses, setExpenses] = useState([]); const [salesHistory, setSalesHistory] = useState([]); const [stockHistory, setStockHistory] = useState([]); const [showCalc, setShowCalc] = useState(false); const [showMenu, setShowMenu] = useState(false); const [showNotif, setShowNotif] = useState(false); const [readNotifs, setReadNotifs] = useState(() => { try { return safeJSONParse(localStorage.getItem('sb_read_notifs') || '{}'); } catch { return {}; } }); const [monthlySnapshots, setMonthlySnapshots] = useState([]); const [cart, setCart] = useState([]);
       const [receiptData, setReceiptData] = useState(null);
       const [showPrintModal, setShowPrintModal] = useState(false);
 
@@ -4591,21 +4602,21 @@ id,name,qty,barcode,date,cashierName
       React.useEffect(() => {
         const cutoff = Date.now() - 3 * 86400000;
         const cleaned = {};
-        const validIds = new Set(notifications.map(n => n.id));
-        Object.entries(readNotifs).forEach(([id, ts]) => { if (ts > cutoff && validIds.has(id)) cleaned[id] = ts; });
+        const validIds = new Set(notifications?.map(n => n.id));
+        Object.entries(readNotifs)?.forEach(([id, ts]) => { if (ts > cutoff && validIds.has(id)) cleaned[id] = ts; });
         if (Object.keys(cleaned).length !== Object.keys(readNotifs).length) {
           setReadNotifs(cleaned);
         }
         localStorage.setItem('sb_read_notifs', JSON.stringify(cleaned));
       }, [notifications]);
-      const visibleNotifs = notifications.filter(n => !readNotifs[n.id]);
+      const visibleNotifs = notifications?.filter(n => !readNotifs[n.id]);
       const unreadNotifCount = visibleNotifs.length;
       const markNotifRead = (id) => setReadNotifs(prev => ({ ...prev, [id]: Date.now() }));
-      const markAllNotifRead = () => { const m = { ...readNotifs }; const now = Date.now(); notifications.forEach(n => { m[n.id] = now; }); setReadNotifs(m); };
+      const markAllNotifRead = () => { const m = { ...readNotifs }; const now = Date.now(); notifications?.forEach(n => { m[n.id] = now; }); setReadNotifs(m); };
       
       const updateProducts = (newData) => { setProducts(newData); saveDataToDB('products', newData); tursoSync('products', newData); }; const updateCustomers = (newData) => { setCustomers(newData); saveDataToDB('customers', newData); tursoSync('customers', newData); }; const updateDebts = (newData) => { setDebts(newData); saveDataToDB('debts', newData); tursoSync('debts', newData); }; const updatePaidDebts = (newData) => { setPaidDebts(newData); saveDataToDB('paidDebts', newData); tursoSync('paidDebts', newData); }; const updateExpenses = (newData) => { setExpenses(newData); saveDataToDB('expenses', newData); tursoSync('expenses', newData); }; const updateSalesHistory = (newData) => { setSalesHistory(newData); saveDataToDB('salesHistory', newData); tursoSync('salesHistory', newData); const snaps = computeMonthlyAggregates(newData); if (snaps.length > 0) { saveMonthlySnapshots(snaps).then(() => setMonthlySnapshots(snaps)); } }; const updateStockHistory = (newData) => { setStockHistory(newData); saveDataToDB('stockHistory', newData); tursoSync('stockHistory', newData); };
 
-      useEffect(() => { const loadAllData = async () => { const loadedProducts = (await loadDataFromDB('products') || []).filter(Boolean); const loadedCustomers = (await loadDataFromDB('customers') || []).filter(Boolean); const loadedDebts = (await loadDataFromDB('debts') || []).filter(Boolean); const loadedPaidDebts = (await loadDataFromDB('paidDebts') || []).filter(Boolean); const loadedExpenses = (await loadDataFromDB('expenses') || []).filter(Boolean); const loadedSales = (await loadDataFromDB('salesHistory') || []).filter(Boolean); const loadedStock = (await loadDataFromDB('stockHistory') || []).filter(Boolean); const loadedSnaps = (await loadMonthlySnapshots() || []).filter(Boolean); setProducts(loadedProducts); setCustomers(loadedCustomers); setDebts(loadedDebts); setPaidDebts(loadedPaidDebts); setExpenses(loadedExpenses); setSalesHistory(loadedSales); setStockHistory(loadedStock); setMonthlySnapshots(loadedSnaps); }; loadAllData(); }, []);
+      useEffect(() => { const loadAllData = async () => { const loadedProducts = (await loadDataFromDB('products') || [])?.filter(Boolean); const loadedCustomers = (await loadDataFromDB('customers') || [])?.filter(Boolean); const loadedDebts = (await loadDataFromDB('debts') || [])?.filter(Boolean); const loadedPaidDebts = (await loadDataFromDB('paidDebts') || [])?.filter(Boolean); const loadedExpenses = (await loadDataFromDB('expenses') || [])?.filter(Boolean); const loadedSales = (await loadDataFromDB('salesHistory') || [])?.filter(Boolean); const loadedStock = (await loadDataFromDB('stockHistory') || [])?.filter(Boolean); const loadedSnaps = (await loadMonthlySnapshots() || [])?.filter(Boolean); setProducts(loadedProducts); setCustomers(loadedCustomers); setDebts(loadedDebts); setPaidDebts(loadedPaidDebts); setExpenses(loadedExpenses); setSalesHistory(loadedSales); setStockHistory(loadedStock); setMonthlySnapshots(loadedSnaps); }; loadAllData(); }, []);
 
       // ── Real-time sync: poll Turso every 5s for changes made on other devices ──
       const lastSyncTsRef = useRef(0);
@@ -4613,7 +4624,7 @@ id,name,qty,barcode,date,cashierName
         const raw = localStorage.getItem('db_session');
         if (!raw) return; // No DB connected — don't poll
         let url, token;
-        try { ({ url, token } = JSON.parse(raw)); } catch { return; }
+        try { ({ url, token } = safeJSONParse(raw)); } catch { return; }
         if (!url || !token) return;
         const httpUrl = url.trim().replace(/^libsql:\/\//, 'https://');
 
@@ -4621,13 +4632,13 @@ id,name,qty,barcode,date,cashierName
           // Update React state AND local IndexedDB with the new data from Turso
           if (data.settings && !Array.isArray(data.settings))   { if (setSettingsRaw) setSettingsRaw({ ...DEFAULT_SETTINGS, ...data.settings }); await saveDataToDB('settings', data.settings); }
           if (data.superAdminSettings && !Array.isArray(data.superAdminSettings)) { if (setSuperAdminSettingsRaw) setSuperAdminSettingsRaw({ ...DEFAULT_SUPER_ADMIN_SETTINGS, ...data.superAdminSettings }); await saveDataToDB('superAdminSettings', data.superAdminSettings); }
-          if (Array.isArray(data.products))     { const v = data.products.filter(Boolean); setProducts(v);         await saveDataToDB('products', v); }
-          if (Array.isArray(data.salesHistory)) { const v = data.salesHistory.filter(Boolean); setSalesHistory(v);  await saveDataToDB('salesHistory', v); const snaps = computeMonthlyAggregates(v); if (snaps.length > 0) { saveMonthlySnapshots(snaps).then(() => setMonthlySnapshots(snaps)); } }
-          if (Array.isArray(data.customers))    { const v = data.customers.filter(Boolean); setCustomers(v);         await saveDataToDB('customers', v); }
-          if (Array.isArray(data.debts))        { const v = data.debts.filter(Boolean); setDebts(v);                 await saveDataToDB('debts', v); }
-          if (Array.isArray(data.paidDebts))    { const v = data.paidDebts.filter(Boolean); setPaidDebts(v);         await saveDataToDB('paidDebts', v); }
-          if (Array.isArray(data.expenses))     { const v = data.expenses.filter(Boolean); setExpenses(v);           await saveDataToDB('expenses', v); }
-          if (Array.isArray(data.stockHistory)) { const v = data.stockHistory.filter(Boolean); setStockHistory(v);   await saveDataToDB('stockHistory', v); }
+          if (Array.isArray(data.products))     { const v = data.products?.filter(Boolean); setProducts(v);         await saveDataToDB('products', v); }
+          if (Array.isArray(data.salesHistory)) { const v = data.salesHistory?.filter(Boolean); setSalesHistory(v);  await saveDataToDB('salesHistory', v); const snaps = computeMonthlyAggregates(v); if (snaps.length > 0) { saveMonthlySnapshots(snaps).then(() => setMonthlySnapshots(snaps)); } }
+          if (Array.isArray(data.customers))    { const v = data.customers?.filter(Boolean); setCustomers(v);         await saveDataToDB('customers', v); }
+          if (Array.isArray(data.debts))        { const v = data.debts?.filter(Boolean); setDebts(v);                 await saveDataToDB('debts', v); }
+          if (Array.isArray(data.paidDebts))    { const v = data.paidDebts?.filter(Boolean); setPaidDebts(v);         await saveDataToDB('paidDebts', v); }
+          if (Array.isArray(data.expenses))     { const v = data.expenses?.filter(Boolean); setExpenses(v);           await saveDataToDB('expenses', v); }
+          if (Array.isArray(data.stockHistory)) { const v = data.stockHistory?.filter(Boolean); setStockHistory(v);   await saveDataToDB('stockHistory', v); }
         };
 
         const interval = setInterval(async () => {
@@ -4678,7 +4689,7 @@ id,name,qty,barcode,date,cashierName
           const today = new Date();
           const nextWeek = new Date();
           nextWeek.setDate(today.getDate() + 7);
-          const expiring = products.filter(p => {
+          const expiring = products?.filter(p => {
              if (!p.expiryDate) return false;
              let d;
              if (p.expiryDate.includes('/')) {
@@ -4722,15 +4733,15 @@ id,name,qty,barcode,date,cashierName
             doc.text(`Auto-Backup Report - ${today}`, 14, 30);
 
             doc.setFontSize(10);
-            doc.text(`Total Revenue: Ksh. ${salesHistory.reduce((a, b) => a + (b.finalPrice || b.price * b.quantity), 0).toLocaleString()}`, 14, 40);
-            doc.text(`Net Profit: Ksh. ${((salesHistory.reduce((a, b) => a + b.profit, 0)) - (expenses.reduce((a, b) => a + b.amount, 0))).toLocaleString()}`, 14, 45);
-            doc.text(`Total Expenses: Ksh. ${expenses.reduce((a, b) => a + b.amount, 0).toLocaleString()}`, 14, 50);
-            doc.text(`Pending Debts: Ksh. ${debts.reduce((a, b) => a + b.amount, 0).toLocaleString()}`, 14, 55);
+            doc.text(`Total Revenue: Ksh. ${salesHistory?.reduce((a, b) => a + (b.finalPrice || b.price * b.quantity), 0).toLocaleString()}`, 14, 40);
+            doc.text(`Net Profit: Ksh. ${((salesHistory?.reduce((a, b) => a + b.profit, 0)) - (expenses?.reduce((a, b) => a + b.amount, 0))).toLocaleString()}`, 14, 45);
+            doc.text(`Total Expenses: Ksh. ${expenses?.reduce((a, b) => a + b.amount, 0).toLocaleString()}`, 14, 50);
+            doc.text(`Pending Debts: Ksh. ${debts?.reduce((a, b) => a + b.amount, 0).toLocaleString()}`, 14, 55);
 
-            autoTable(doc, { startY: 65, head: [['Barcode', 'Name', 'Price', 'Category', 'Cost', 'Stock', 'Expiry Date']], body: products.map(p => [p.barcode || '-', p.name, p.price, (p && p.category), p.cost, p.stock, p.expiryDate || '-']), headStyles: { fillColor: '#059669' } });
-            autoTable(doc, { head: [['Date', 'Product', 'Qty', 'Total', 'Cashier']], body: salesHistory.map(s => [new Date(s.date).toLocaleDateString(), s.name, s.quantity, s.finalPrice, s.cashierName]), headStyles: { fillColor: '#059669' } });
-            autoTable(doc, { head: [['Date', 'Description', 'Amount']], body: expenses.map(e => [e.date, e.desc, e.amount]), headStyles: { fillColor: '#059669' } });
-            autoTable(doc, { head: [['Date', 'Customer', 'Items', 'Amount']], body: debts.map(d => [d.dateAdded, d.name, d.product, d.amount]), headStyles: { fillColor: '#059669' } });
+            autoTable(doc, { startY: 65, head: [['Barcode', 'Name', 'Price', 'Category', 'Cost', 'Stock', 'Expiry Date']], body: products?.map(p => [p.barcode || '-', p.name, p.price, (p && p.category), p.cost, p.stock, p.expiryDate || '-']), headStyles: { fillColor: '#059669' } });
+            autoTable(doc, { head: [['Date', 'Product', 'Qty', 'Total', 'Cashier']], body: salesHistory?.map(s => [new Date(s.date).toLocaleDateString(), s.name, s.quantity, s.finalPrice, s.cashierName]), headStyles: { fillColor: '#059669' } });
+            autoTable(doc, { head: [['Date', 'Description', 'Amount']], body: expenses?.map(e => [e.date, e.desc, e.amount]), headStyles: { fillColor: '#059669' } });
+            autoTable(doc, { head: [['Date', 'Customer', 'Items', 'Amount']], body: debts?.map(d => [d.dateAdded, d.name, d.product, d.amount]), headStyles: { fillColor: '#059669' } });
 
             doc.save(`AutoBackup_Report_${new Date().toISOString().split('T')[0]}.pdf`);
 
@@ -4751,7 +4762,7 @@ id,name,qty,barcode,date,cashierName
           return { role: 'owner', name: currentUser.name || settings.ownerName || 'Owner' };
         }
         if (currentUser.role === 'cashier') {
-          const cashierDetails = getSafeCashiers(settings).find(c => c.id === currentUser.id);
+          const cashierDetails = getSafeCashiers(settings)?.find(c => c.id === currentUser.id);
           return { ...currentUser, name: cashierDetails?.name || 'Cashier', permissions: cashierDetails?.permissions || {} };
         }
         return currentUser;
@@ -4783,7 +4794,7 @@ id,name,qty,barcode,date,cashierName
           return;
         }
 
-        const saleToCancel = salesHistory.find(s => s.id === saleId);
+        const saleToCancel = salesHistory?.find(s => s.id === saleId);
 
         if (!saleToCancel) {
           return toast.error('Sale not found.');
@@ -4794,9 +4805,9 @@ id,name,qty,barcode,date,cashierName
         }
 
         // Update product stock if product still exists
-        const productToRestock = products.find(p => (p && p.id) === saleToCancel.productId);
+        const productToRestock = products?.find(p => (p && p.id) === saleToCancel.productId);
         if (productToRestock) {
-          const updatedProducts = products.map(p =>
+          const updatedProducts = products?.map(p =>
             (p && p.id) === saleToCancel.productId
               ? { ...p, stock: p.stock + saleToCancel.quantity }
               : p
@@ -4807,7 +4818,7 @@ id,name,qty,barcode,date,cashierName
         }
 
         // Remove sale from history
-        const updatedSalesHistory = salesHistory.filter(s => s.id !== saleId);
+        const updatedSalesHistory = salesHistory?.filter(s => s.id !== saleId);
         updateSalesHistory(updatedSalesHistory);
 
         toast.success('Sale cancelled successfully.');
@@ -4820,18 +4831,18 @@ id,name,qty,barcode,date,cashierName
 
         // 1. Stock Validation (Aggregate)
         const quantitiesNeeded = {};
-        cart.forEach(item => {
+        cart?.forEach(item => {
           quantitiesNeeded[item.productId] = (quantitiesNeeded[item.productId] || 0) + item.quantity;
         });
         for (const [prodId, qty] of Object.entries(quantitiesNeeded)) {
-          const product = tempProducts.find(p => (p && p.id) === prodId);
+          const product = tempProducts?.find(p => (p && p.id) === prodId);
           if (!product) return toast.error("Product not found");
           if (product.stock < qty) return toast.error(`Not enough stock for ${product.name}. Need ${qty}, have ${product.stock}`);
         }
 
         // 2. Process Sales Sequentially
-        cart.forEach(item => {
-          const pIndex = tempProducts.findIndex(p => (p && p.id) === item.productId);
+        cart?.forEach(item => {
+          const pIndex = tempProducts?.findIndex(p => (p && p.id) === item.productId);
           const p = tempProducts[pIndex];
 
           const itemTotal = item.price * item.quantity;
@@ -4874,7 +4885,7 @@ id,name,qty,barcode,date,cashierName
           invoiceId: `INV-${Date.now()}`,
           total: totals.grandTotal,
           paymentMethod: payment.method,
-          items: cart.map(item => `${item.name} (${item.quantity})`).join(', '),
+          items: cart?.map(item => `${item.name} (${item.quantity})`).join(', '),
           cashier: effectiveCurrentUser?.name || 'Unknown'
         };
 
@@ -4897,15 +4908,15 @@ id,name,qty,barcode,date,cashierName
         doc.text(`Business Report - ${today}`, 14, 30);
 
         doc.setFontSize(10);
-        doc.text(`Total Revenue: Ksh. ${salesHistory.reduce((a, b) => a + (b.finalPrice || b.price * b.quantity), 0).toLocaleString()}`, 14, 40);
-        doc.text(`Net Profit: Ksh. ${((salesHistory.reduce((a, b) => a + b.profit, 0)) - (expenses.reduce((a, b) => a + b.amount, 0))).toLocaleString()}`, 14, 45);
-        doc.text(`Total Expenses: Ksh. ${expenses.reduce((a, b) => a + b.amount, 0).toLocaleString()}`, 14, 50);
-        doc.text(`Pending Debts: Ksh. ${debts.reduce((a, b) => a + b.amount, 0).toLocaleString()}`, 14, 55);
+        doc.text(`Total Revenue: Ksh. ${salesHistory?.reduce((a, b) => a + (b.finalPrice || b.price * b.quantity), 0).toLocaleString()}`, 14, 40);
+        doc.text(`Net Profit: Ksh. ${((salesHistory?.reduce((a, b) => a + b.profit, 0)) - (expenses?.reduce((a, b) => a + b.amount, 0))).toLocaleString()}`, 14, 45);
+        doc.text(`Total Expenses: Ksh. ${expenses?.reduce((a, b) => a + b.amount, 0).toLocaleString()}`, 14, 50);
+        doc.text(`Pending Debts: Ksh. ${debts?.reduce((a, b) => a + b.amount, 0).toLocaleString()}`, 14, 55);
 
-        autoTable(doc, { startY: 65, head: [['Barcode', 'Name', 'Price', 'Category', 'Cost', 'Stock', 'Expiry Date']], body: products.map(p => [p.barcode || '-', p.name, p.price, (p && p.category), p.cost, p.stock, p.expiryDate || '-']), headStyles: { fillColor: '#059669' } });
-        autoTable(doc, { head: [['Date', 'Product', 'Qty', 'Total', 'Cashier']], body: salesHistory.map(s => [new Date(s.date).toLocaleDateString(), s.name, s.quantity, s.finalPrice, s.cashierName]), headStyles: { fillColor: '#059669' } });
-        autoTable(doc, { head: [['Date', 'Description', 'Amount']], body: expenses.map(e => [e.date, e.desc, e.amount]), headStyles: { fillColor: '#059669' } });
-        autoTable(doc, { head: [['Date', 'Customer', 'Items', 'Amount']], body: debts.map(d => [d.dateAdded, d.name, d.product, d.amount]), headStyles: { fillColor: '#059669' } });
+        autoTable(doc, { startY: 65, head: [['Barcode', 'Name', 'Price', 'Category', 'Cost', 'Stock', 'Expiry Date']], body: products?.map(p => [p.barcode || '-', p.name, p.price, (p && p.category), p.cost, p.stock, p.expiryDate || '-']), headStyles: { fillColor: '#059669' } });
+        autoTable(doc, { head: [['Date', 'Product', 'Qty', 'Total', 'Cashier']], body: salesHistory?.map(s => [new Date(s.date).toLocaleDateString(), s.name, s.quantity, s.finalPrice, s.cashierName]), headStyles: { fillColor: '#059669' } });
+        autoTable(doc, { head: [['Date', 'Description', 'Amount']], body: expenses?.map(e => [e.date, e.desc, e.amount]), headStyles: { fillColor: '#059669' } });
+        autoTable(doc, { head: [['Date', 'Customer', 'Items', 'Amount']], body: debts?.map(d => [d.dateAdded, d.name, d.product, d.amount]), headStyles: { fillColor: '#059669' } });
 
         doc.save(`SoftlyBuilt_Report_${new Date().toISOString().split('T')[0]}.pdf`);
       };
@@ -4931,7 +4942,7 @@ id,name,qty,barcode,date,cashierName
           if (tab === 'settings' && effectiveCurrentUser?.role === 'owner') return <SettingsPanel {...props} updateProducts={updateProducts} updateSalesHistory={updateSalesHistory} updateExpenses={updateExpenses} updateDebts={updateDebts} updatePaidDebts={updatePaidDebts} updateStockHistory={updateStockHistory} handleDownloadPdf={handleDownloadPdf} />;
           if (tab === 'suppliers' && canView('suppliers')) return <SupplierPanel {...props} />;
           if (tab === 'stockHistory' && canView('stockHistory')) return <StockHistoryPanel stockHistory={stockHistory} />;
-          if (tab === 'staffProfiles' && effectiveCurrentUser?.role === 'owner') return <StaffProfilesPanel users={[{name: 'Owner', role: 'owner'}, ...getSafeCashiers(settings).map(c => ({name: c.name, role: c.role || 'cashier'}))]} salesHistory={salesHistory} stockHistory={stockHistory} expenses={expenses} products={products} customers={customers} />;
+          if (tab === 'staffProfiles' && effectiveCurrentUser?.role === 'owner') return <StaffProfilesPanel users={[{name: 'Owner', role: 'owner'}, ...getSafeCashiers(settings)?.map(c => ({name: c.name, role: c.role || 'cashier'}))]} salesHistory={salesHistory} stockHistory={stockHistory} expenses={expenses} products={products} customers={customers} />;
           return null;
         })();
         return <ErrorBoundary>{Content}</ErrorBoundary>;
@@ -4959,7 +4970,7 @@ id,name,qty,barcode,date,cashierName
           </nav>
           <div className="p-4 border-t border-slate-100 space-y-2">{notifEnabled && <button onClick={() => setShowNotif(true)} className="flex items-center gap-3 w-full p-3 text-slate-500 hover:bg-slate-50 hover:text-slate-800 rounded-lg transition-colors relative"><Bell className="w-5 h-5" /> Notifications {unreadNotifCount > 0 && <span className="ml-auto bg-rose-500 text-white text-[10px] font-bold rounded-full min-w-[20px] h-5 px-1.5 flex items-center justify-center">{unreadNotifCount}</span>}</button>}<button onClick={() => setShowCalc(!showCalc)} className="flex items-center gap-3 w-full p-3 text-slate-500 hover:bg-slate-50 hover:text-slate-800 rounded-lg transition-colors"><CalcIcon className="w-5 h-5" /> Calculator</button><button onClick={onLogout} className="flex items-center gap-3 w-full p-3 text-red-500 hover:bg-red-50 rounded-lg mt-1 transition-colors"><LogOut className="w-5 h-5" /> Logout</button></div>
         </aside>
-        <div className="md:hidden fixed bottom-0 left-0 right-0 w-full bg-white border-t border-slate-200 flex justify-around p-2 z-40 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">{['products', 'customers', 'debts', 'expenses', 'summary', 'settings'].map(t => canView(t) && (<button key={t} onClick={() => setTab(t)} className={`p-2 rounded-lg ${tab === t ? 'text-emerald-600 bg-emerald-50' : 'text-slate-400'}`}>
+        <div className="md:hidden fixed bottom-0 left-0 right-0 w-full bg-white border-t border-slate-200 flex justify-around p-2 z-40 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">{['products', 'customers', 'debts', 'expenses', 'summary', 'settings']?.map(t => canView(t) && (<button key={t} onClick={() => setTab(t)} className={`p-2 rounded-lg ${tab === t ? 'text-emerald-600 bg-emerald-50' : 'text-slate-400'}`}>
           {t === 'products' ? <Package className="w-6 h-6" /> :
             t === 'customers' ? <UserPlus className="w-6 h-6" /> :
               t === 'debts' ? <Users className="w-6 h-6" /> :
@@ -4995,11 +5006,11 @@ id,name,qty,barcode,date,cashierName
                   {k:'cashierSalesHistory', label:'Sales History', Icon: FileText, cashierOnly:true},
                   {k:'settings', label:'Settings', Icon: SettingsIcon, ownerOnly:true},
                   {k:'cashierSettings', label:'Settings', Icon: SettingsIcon, cashierOnly:true},
-                ].filter(it => {
+                ]?.filter(it => {
                   if (it.ownerOnly) return effectiveCurrentUser?.role === 'owner';
                   if (it.cashierOnly) return effectiveCurrentUser?.role === 'cashier';
                   return canView(it.k);
-                }).map(({k,label,Icon}) => (
+                })?.map(({k,label,Icon}) => (
                   <button key={k} onClick={() => { setTab(k); setShowMenu(false); }} className={`flex items-center gap-3 w-full p-3 rounded-lg font-medium transition-colors ${tab === k ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:bg-slate-50'}`}><Icon className="w-5 h-5" /> {label}</button>
                 ))}
               </nav>
@@ -5055,20 +5066,20 @@ id,name,qty,barcode,date,cashierName
       // Restore view and currentUser from localStorage so page refresh never drops the user
       const [view, setViewRaw] = useState(() => {
         try {
-          const s = JSON.parse(localStorage.getItem('sb_session') || 'null');
+          const s = safeJSONParse(localStorage.getItem('sb_session') || 'null');
           return (s && s.view) ? s.view : 'landing';
         } catch { return 'landing'; }
       });
       const [currentUser, setCurrentUserRaw] = useState(() => {
         try {
-          const s = JSON.parse(localStorage.getItem('sb_session') || 'null');
+          const s = safeJSONParse(localStorage.getItem('sb_session') || 'null');
           return (s && s.currentUser) ? s.currentUser : null;
         } catch { return null; }
       });
 
       // Wrapper helpers that always keep localStorage in sync
-      const setView = (v) => { setViewRaw(v); try { const s = JSON.parse(localStorage.getItem('sb_session') || '{}'); localStorage.setItem('sb_session', JSON.stringify({ ...s, view: v })); } catch {} };
-      const setCurrentUser = (u) => { setCurrentUserRaw(u); try { const s = JSON.parse(localStorage.getItem('sb_session') || '{}'); localStorage.setItem('sb_session', JSON.stringify({ ...s, currentUser: u })); } catch {} };
+      const setView = (v) => { setViewRaw(v); try { const s = safeJSONParse(localStorage.getItem('sb_session') || '{}'); localStorage.setItem('sb_session', JSON.stringify({ ...s, view: v })); } catch {} };
+      const setCurrentUser = (u) => { setCurrentUserRaw(u); try { const s = safeJSONParse(localStorage.getItem('sb_session') || '{}'); localStorage.setItem('sb_session', JSON.stringify({ ...s, currentUser: u })); } catch {} };
 
       const [pin, setPin] = useState('');
       const [loginMode, setLoginMode] = useState('pin');
@@ -5079,7 +5090,7 @@ id,name,qty,barcode,date,cashierName
           if (settings && settings.autoLock) {
             const handleUnload = () => {
               try {
-                const s = JSON.parse(localStorage.getItem('sb_session') || '{}');
+                const s = safeJSONParse(localStorage.getItem('sb_session') || '{}');
                 if (s.currentUser) {
                   delete s.currentUser;
                   s.view = 'pin';
@@ -5285,7 +5296,7 @@ id,name,qty,barcode,date,cashierName
             try {
               const raw = localStorage.getItem('db_session');
               if (raw) {
-                const s = JSON.parse(raw);
+                const s = safeJSONParse(raw);
                 if (s && s.url) params.append('dbUrl', s.url);
               }
             } catch {}
@@ -5365,7 +5376,7 @@ id,name,qty,barcode,date,cashierName
             setView('dash');
             toast.success('Owner Access');
           } else {
-            const cashier = getSafeCashiers(settings).find(c => (c.pin === v && v !== '') || (c.password === v && v !== ''));
+            const cashier = getSafeCashiers(settings)?.find(c => (c.pin === v && v !== '') || (c.password === v && v !== ''));
             if (cashier) {
               if (cashier.role === 'owner') {
                 setCurrentUser({ role: 'owner', name: cashier.name });
@@ -5401,7 +5412,7 @@ id,name,qty,barcode,date,cashierName
           setView('dash');
           toast.success('Owner Access');
         } else {
-          const cashier = getSafeCashiers(settings).find(c => c.pin === v);
+          const cashier = getSafeCashiers(settings)?.find(c => c.pin === v);
           if (cashier) {
             if (cashier.role === 'owner') {
               setCurrentUser({ role: 'owner', name: cashier.name });
@@ -5475,7 +5486,7 @@ id,name,qty,barcode,date,cashierName
             const bytes = CryptoJS.AES.decrypt(scannedQrText, v);
             const decryptedString = bytes.toString(CryptoJS.enc.Utf8);
             if (!decryptedString) throw new Error('Invalid PIN');
-            const payload = JSON.parse(decryptedString);
+            const payload = safeJSONParse(decryptedString);
             
             if (!payload.url || !payload.token || !payload.cashierId) {
                throw new Error('Invalid payload');
@@ -5489,7 +5500,7 @@ id,name,qty,barcode,date,cashierName
             if (p) {
                toast.success("Connected successfully!", { id: 'qr-connect' });
                const s = await loadDataFromDB('settings') || DEFAULT_SETTINGS;
-               const cashier = (s.cashiers || []).find(c => c.id === payload.cashierId && String(c.pin) === v);
+               const cashier = (s.cashiers || [])?.find(c => c.id === payload.cashierId && String(c.pin) === v);
                if (cashier) {
                   setCurrentUser({ role: cashier.role || 'cashier', id: cashier.id, name: cashier.name, permissions: cashier.permissions || {} });
                   setView('dash');
@@ -5619,7 +5630,7 @@ id,name,qty,barcode,date,cashierName
           {view === 'pin' && (<div className="min-h-screen bg-slate-50 flex items-center justify-center p-4"><div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm text-center"><div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4"><Lock className="w-8 h-8 text-emerald-600" /></div><h2 className="text-xl font-bold mb-2 text-slate-800">Enter Access {loginMode === 'pin' ? 'PIN' : 'Password'}</h2><p className="text-sm text-slate-500 mb-6">Login as Owner or Cashier</p>
 {loginMode === 'pin' ? (
   <>
-  <div className="flex justify-center gap-3 mb-8">{[0, 1, 2, 3].map(i => <div key={i} className={`w-3 h-3 rounded-full transition-all ${pin.length > i ? 'bg-emerald-600 scale-125' : 'bg-slate-200'}`}></div>)}</div><div className="grid grid-cols-3 gap-4">{[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => <button key={n} onClick={() => checkPin(pin + n)} className="p-4 bg-slate-50 rounded-xl font-bold text-xl text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 hover:shadow-md transition-all border border-slate-100">{n}</button>)}<div /><button onClick={() => checkPin(pin + '0')} className="p-4 bg-slate-50 rounded-xl font-bold text-xl text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 hover:shadow-md transition-all border border-slate-100">0</button><button onClick={() => setPin(pin.slice(0, -1))} className="p-4 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"><Delete className="w-6 h-6" /></button></div>
+  <div className="flex justify-center gap-3 mb-8">{[0, 1, 2, 3]?.map(i => <div key={i} className={`w-3 h-3 rounded-full transition-all ${pin.length > i ? 'bg-emerald-600 scale-125' : 'bg-slate-200'}`}></div>)}</div><div className="grid grid-cols-3 gap-4">{[1, 2, 3, 4, 5, 6, 7, 8, 9]?.map(n => <button key={n} onClick={() => checkPin(pin + n)} className="p-4 bg-slate-50 rounded-xl font-bold text-xl text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 hover:shadow-md transition-all border border-slate-100">{n}</button>)}<div /><button onClick={() => checkPin(pin + '0')} className="p-4 bg-slate-50 rounded-xl font-bold text-xl text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 hover:shadow-md transition-all border border-slate-100">0</button><button onClick={() => setPin(pin.slice(0, -1))} className="p-4 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"><Delete className="w-6 h-6" /></button></div>
   </>
 ) : (
   <form onSubmit={(e) => { e.preventDefault(); checkPin(pin, true); }} className="mb-4">
@@ -5631,7 +5642,7 @@ id,name,qty,barcode,date,cashierName
 <button onClick={() => { setPin(''); setLoginMode(loginMode === 'pin' ? 'password' : 'pin'); }} className="mt-6 text-emerald-600 hover:text-emerald-700 font-medium text-sm block mx-auto underline decoration-dotted">Switch to {loginMode === 'pin' ? 'Password' : 'PIN'}</button>
 <button onClick={() => { setPin(''); setView('admin_recovery'); }} className="mt-4 text-emerald-600 hover:text-emerald-700 font-medium text-sm block mx-auto underline decoration-dotted">Forgot PIN?</button>
 <button onClick={logout} className="mt-6 text-sm text-slate-400 hover:text-red-500 font-medium block mx-auto">Back to Home</button></div></div>)}
-          {view === 'recover' && (<div className="min-h-screen bg-slate-50 flex items-center justify-center p-4"><div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm text-center"><div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4"><Key className="w-8 h-8 text-amber-600" /></div><h2 className="text-xl font-bold mb-2 text-slate-800">Recover Access</h2><p className="text-sm text-slate-500 mb-6">Enter the master recovery PIN.</p><div className="flex justify-center gap-3 mb-8">{[0, 1, 2, 3, 4, 5].map(i => <div key={i} className={`w-3 h-3 rounded-full transition-all ${pin.length > i ? 'bg-amber-600 scale-125' : 'bg-slate-200'}`}></div>)}</div><div className="grid grid-cols-3 gap-4">{[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => <button key={n} onClick={() => checkRecoveryPin(pin + n)} className="p-4 bg-slate-50 rounded-xl font-bold text-xl text-slate-700 hover:bg-amber-50 hover:text-amber-700 hover:shadow-md transition-all border border-slate-100">{n}</button>)}<div /><button onClick={() => checkRecoveryPin(pin + '0')} className="p-4 bg-slate-50 rounded-xl font-bold text-xl text-slate-700 hover:bg-amber-50 hover:text-amber-700 hover:shadow-md transition-all border border-slate-100">0</button><button onClick={() => setPin(pin.slice(0, -1))} className="p-4 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"><Delete className="w-6 h-6" /></button></div><button onClick={() => { setPin(''); setView('pin'); }} className="mt-8 text-sm text-slate-400 hover:text-slate-700 font-medium">Back to Login</button></div></div>)}
+          {view === 'recover' && (<div className="min-h-screen bg-slate-50 flex items-center justify-center p-4"><div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm text-center"><div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4"><Key className="w-8 h-8 text-amber-600" /></div><h2 className="text-xl font-bold mb-2 text-slate-800">Recover Access</h2><p className="text-sm text-slate-500 mb-6">Enter the master recovery PIN.</p><div className="flex justify-center gap-3 mb-8">{[0, 1, 2, 3, 4, 5]?.map(i => <div key={i} className={`w-3 h-3 rounded-full transition-all ${pin.length > i ? 'bg-amber-600 scale-125' : 'bg-slate-200'}`}></div>)}</div><div className="grid grid-cols-3 gap-4">{[1, 2, 3, 4, 5, 6, 7, 8, 9]?.map(n => <button key={n} onClick={() => checkRecoveryPin(pin + n)} className="p-4 bg-slate-50 rounded-xl font-bold text-xl text-slate-700 hover:bg-amber-50 hover:text-amber-700 hover:shadow-md transition-all border border-slate-100">{n}</button>)}<div /><button onClick={() => checkRecoveryPin(pin + '0')} className="p-4 bg-slate-50 rounded-xl font-bold text-xl text-slate-700 hover:bg-amber-50 hover:text-amber-700 hover:shadow-md transition-all border border-slate-100">0</button><button onClick={() => setPin(pin.slice(0, -1))} className="p-4 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"><Delete className="w-6 h-6" /></button></div><button onClick={() => { setPin(''); setView('pin'); }} className="mt-8 text-sm text-slate-400 hover:text-slate-700 font-medium">Back to Login</button></div></div>)}
           {view === 'admin_recovery' && (
   <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
     <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm text-center">
@@ -5705,7 +5716,7 @@ id,name,qty,barcode,date,cashierName
                       return newSettings;
                     });
                     
-                    const session = JSON.parse(localStorage.getItem('sb_session') || '{}');
+                    const session = safeJSONParse(localStorage.getItem('sb_session') || '{}');
                     localStorage.setItem('sb_session', JSON.stringify({ ...session, view: 'pin' }));
                     toast.success('Recovery successful! Connecting...', { id: toastId });
                     setTimeout(() => window.location.reload(), 1500);
@@ -5754,7 +5765,7 @@ id,name,qty,barcode,date,cashierName
                       return newSettings;
                     });
                     
-                    const session = JSON.parse(localStorage.getItem('sb_session') || '{}');
+                    const session = safeJSONParse(localStorage.getItem('sb_session') || '{}');
                     localStorage.setItem('sb_session', JSON.stringify({ ...session, view: 'pin' }));
                     toast.success('Recovery successful! Connecting...', { id: toastId });
                     setTimeout(() => window.location.reload(), 1500);
@@ -5781,8 +5792,8 @@ id,name,qty,barcode,date,cashierName
                 <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4"><Lock className="w-8 h-8 text-emerald-600" /></div>
                 <h2 className="text-xl font-bold mb-2 text-slate-800">Decrypt Connection</h2>
                 <p className="text-sm text-slate-500 mb-6">Enter your 4-digit PIN to securely connect to the store.</p>
-                <div className="flex justify-center gap-3 mb-8">{[0, 1, 2, 3].map(i => <div key={i} className={`w-3 h-3 rounded-full transition-all ${pin.length > i ? 'bg-emerald-600 scale-125' : 'bg-slate-200'}`}></div>)}</div>
-                <div className="grid grid-cols-3 gap-4">{[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => <button key={n} onClick={() => checkQrPin(pin + n)} className="p-4 bg-slate-50 rounded-xl font-bold text-xl text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 hover:shadow-md transition-all border border-slate-100">{n}</button>)}<div /><button onClick={() => checkQrPin(pin + '0')} className="p-4 bg-slate-50 rounded-xl font-bold text-xl text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 hover:shadow-md transition-all border border-slate-100">0</button><button onClick={() => setPin(pin.slice(0, -1))} className="p-4 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"><Delete className="w-6 h-6" /></button></div>
+                <div className="flex justify-center gap-3 mb-8">{[0, 1, 2, 3]?.map(i => <div key={i} className={`w-3 h-3 rounded-full transition-all ${pin.length > i ? 'bg-emerald-600 scale-125' : 'bg-slate-200'}`}></div>)}</div>
+                <div className="grid grid-cols-3 gap-4">{[1, 2, 3, 4, 5, 6, 7, 8, 9]?.map(n => <button key={n} onClick={() => checkQrPin(pin + n)} className="p-4 bg-slate-50 rounded-xl font-bold text-xl text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 hover:shadow-md transition-all border border-slate-100">{n}</button>)}<div /><button onClick={() => checkQrPin(pin + '0')} className="p-4 bg-slate-50 rounded-xl font-bold text-xl text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 hover:shadow-md transition-all border border-slate-100">0</button><button onClick={() => setPin(pin.slice(0, -1))} className="p-4 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"><Delete className="w-6 h-6" /></button></div>
                 <button onClick={() => { setPin(''); setView('landing'); }} className="mt-8 text-sm text-slate-400 hover:text-red-500 font-medium">Cancel</button>
               </div>
             </div>
