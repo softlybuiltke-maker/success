@@ -1,0 +1,69 @@
+const { createClient } = require('@libsql/client');
+
+module.exports = async (req, res) => {
+  // Add CORS headers
+  res.setHeader('Access-Control-Allow-Credentials', true);
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
+  );
+
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
+  }
+
+  if (req.method !== 'POST') {
+    return res.status(405).json({ ok: false, error: 'Method not allowed' });
+  }
+
+  const { handle, password } = req.body || {};
+
+  if (!handle || !password) {
+    return res.status(400).json({ ok: false, error: 'Handle and password are required' });
+  }
+
+  // Basic handle validation (alphanumeric, no spaces)
+  if (!/^[a-zA-Z0-9_-]+$/.test(handle)) {
+    return res.status(400).json({ ok: false, error: 'Handle can only contain letters, numbers, underscores, and hyphens' });
+  }
+
+  const url = process.env.VITE_TURSO_DB_URL || "libsql://success-success.aws-ap-northeast-1.turso.io";
+  const authToken = process.env.VITE_TURSO_DB_TOKEN || "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3ODI0MTM5MzksImlkIjoiMDE5ZjAwMjYtMWUwMS03NTYxLTg3YWMtZmNmMmM5Yzk1OTc3IiwicmlkIjoiMjQ2YmYzNjctMDZhMi00MzVlLTg2OTctZjAxMTQ5N2Q2ZjA0In0.PSSMjdrQZjrZVqotZPRBUl5_8J_ZJp2mNatNrwyJXrr0ONKoyBZhLBbhq8tdhxEQJef-oteujwTzlJyAa_BnCg";
+
+  let client;
+  try {
+    const httpUrl = url.trim().replace(/^libsql:\/\//, 'https://');
+    client = createClient({ url: httpUrl, authToken });
+
+    // Check if handle already exists
+    const existing = await client.execute({
+      sql: `SELECT handle FROM users WHERE LOWER(handle) = LOWER(?)`,
+      args: [handle]
+    });
+
+    if (existing.rows.length > 0) {
+      return res.status(409).json({ ok: false, error: 'Store handle is already taken' });
+    }
+
+    // Set trial expiration to 14 days from now
+    const validUntil = new Date();
+    validUntil.setDate(validUntil.getDate() + 14);
+
+    await client.execute({
+      sql: `INSERT INTO users (handle, password, valid_until, is_blocked) VALUES (?, ?, ?, 0)`,
+      args: [handle, password, validUntil.toISOString()]
+    });
+
+    res.status(200).json({ ok: true, message: 'Store registered successfully' });
+  } catch (error) {
+    console.error("API Error:", error);
+    res.status(500).json({ ok: false, error: 'Internal Server Error', details: error.message });
+  } finally {
+    if (client) {
+      client.close();
+    }
+  }
+};

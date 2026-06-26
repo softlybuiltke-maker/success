@@ -5119,7 +5119,7 @@ id,name,qty,barcode,date,cashierName
         };
 
         checkGlobalSubscription();
-        const globalInterval = setInterval(checkGlobalSubscription, 5000); // Check every 5 seconds
+        const globalInterval = setInterval(checkGlobalSubscription, 3000); // Check every 3 seconds
         return () => clearInterval(globalInterval);
       }, [settings.storeHandle]);
 
@@ -5284,7 +5284,58 @@ id,name,qty,barcode,date,cashierName
               clearDataFromDB={clearDataFromDB}
             />
           )}
-          {view === 'landing' && (<div className="min-h-screen bg-white flex flex-col"><nav className="px-6 py-4 border-b flex justify-between items-center"><div className="flex items-center gap-2 font-bold text-xl text-slate-800"><img src={window.LOGO_DATA} alt="Softly Built" className="w-10 h-10 rounded-lg object-contain shadow-lg shadow-emerald-200" /> Softly Built</div><button onClick={() => setView('pin')} className="text-emerald-600 font-semibold hover:text-emerald-700">Login</button></nav><div className="flex-1 flex flex-col items-center justify-center text-center px-6 py-20 bg-gradient-to-b from-slate-50 to-white"><h1 className="text-5xl md:text-6xl font-extrabold text-slate-900 mb-6 tracking-tight">Manage your shop with <br className="hidden md:block" /><span className="text-emerald-600">precision and ease.</span></h1><p className="text-lg text-slate-500 max-w-2xl mb-10 leading-relaxed">Softly Built is the professional point-of-sale system designed for modern retailers. Track inventory, manage debts, and visualize profits, now with full offline support.</p><div className="flex flex-col md:flex-row gap-4 justify-center"><button onClick={() => setView('pin')} className="group flex items-center justify-center gap-2 bg-emerald-600 text-white px-8 py-4 rounded-xl text-lg font-bold shadow-xl shadow-emerald-200 hover:bg-emerald-700 hover:shadow-2xl hover:-translate-y-1 transition-all">Launch System <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" /></button><button onClick={() => setView('qr_scan')} className="group flex items-center justify-center gap-2 bg-white text-emerald-600 border border-emerald-200 px-8 py-4 rounded-xl text-lg font-bold shadow-lg hover:bg-emerald-50 hover:shadow-xl hover:-translate-y-1 transition-all">Scan QR Login <QrCode className="w-5 h-5 group-hover:scale-110 transition-transform" /></button></div><button onClick={() => setView('cloud_recovery')} className="mt-8 text-emerald-600 font-bold hover:underline flex items-center justify-center gap-2 mx-auto"><Key className="w-4 h-4" /> Recover Existing Store</button></div><footer className="py-8 text-center text-slate-400 text-sm border-t"><p>&copy; {new Date().getFullYear()} Softly Built.</p></footer></div>)}
+          {view === 'landing' && (<div className="min-h-screen bg-white flex flex-col"><nav className="px-6 py-4 border-b flex justify-between items-center"><div className="flex items-center gap-2 font-bold text-xl text-slate-800"><img src={window.LOGO_DATA} alt="Softly Built" className="w-10 h-10 rounded-lg object-contain shadow-lg shadow-emerald-200" /> Softly Built</div><button onClick={() => setView('pin')} className="text-emerald-600 font-semibold hover:text-emerald-700">Login</button></nav><div className="flex-1 flex flex-col items-center justify-center text-center px-6 py-20 bg-gradient-to-b from-slate-50 to-white"><h1 className="text-5xl md:text-6xl font-extrabold text-slate-900 mb-6 tracking-tight">Manage your shop with <br className="hidden md:block" /><span className="text-emerald-600">precision and ease.</span></h1><p className="text-lg text-slate-500 max-w-2xl mb-10 leading-relaxed">Softly Built is the professional point-of-sale system designed for modern retailers. Track inventory, manage debts, and visualize profits, now with full offline support.</p><div className="flex flex-col md:flex-row gap-4 justify-center"><button onClick={() => !settings.storeHandle ? setView('signup') : setView('pin')} className="group flex items-center justify-center gap-2 bg-emerald-600 text-white px-8 py-4 rounded-xl text-lg font-bold shadow-xl shadow-emerald-200 hover:bg-emerald-700 hover:shadow-2xl hover:-translate-y-1 transition-all">Launch System <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" /></button><button onClick={() => setView('qr_scan')} className="group flex items-center justify-center gap-2 bg-white text-emerald-600 border border-emerald-200 px-8 py-4 rounded-xl text-lg font-bold shadow-lg hover:bg-emerald-50 hover:shadow-xl hover:-translate-y-1 transition-all">Scan QR Login <QrCode className="w-5 h-5 group-hover:scale-110 transition-transform" /></button></div><button onClick={() => setView('cloud_recovery')} className="mt-8 text-emerald-600 font-bold hover:underline flex items-center justify-center gap-2 mx-auto"><Key className="w-4 h-4" /> Recover Existing Store</button></div><footer className="py-8 text-center text-slate-400 text-sm border-t"><p>&copy; {new Date().getFullYear()} Softly Built.</p></footer></div>)}
+          {view === 'signup' && (
+            <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
+              <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm">
+                <div className="text-center mb-6">
+                  <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Lock className="w-8 h-8 text-emerald-600" />
+                  </div>
+                  <h2 className="text-2xl font-bold text-slate-800">Register Store</h2>
+                  <p className="text-sm text-slate-500 mt-2">First-time setup. Pick a unique handle.</p>
+                </div>
+                <form onSubmit={async (e) => {
+                  e.preventDefault();
+                  const h = e.target.handle.value;
+                  const p = e.target.password.value;
+                  if (!h || !p) return toast.error('Fill all fields');
+                  const toastId = toast.loading('Registering...');
+                  try {
+                    const res = await fetch('/api/register-store', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ handle: h, password: p })
+                    });
+                    const data = await res.json();
+                    if (data.ok) {
+                      toast.success(data.message, { id: toastId });
+                      const updated = { ...settings, storeHandle: h };
+                      setSettings(updated);
+                      if (typeof setSettingsRaw !== 'undefined') setSettingsRaw(updated);
+                      await saveDataToDB('settings', updated);
+                      setView('pin');
+                    } else {
+                      toast.error(data.error, { id: toastId });
+                    }
+                  } catch(err) {
+                    toast.error('Network error', { id: toastId });
+                  }
+                }}>
+                  <div className="mb-4">
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">Store Handle</label>
+                    <input name="handle" type="text" className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 ring-emerald-500" placeholder="e.g. MyStore" />
+                  </div>
+                  <div className="mb-6">
+                    <label className="block text-sm font-semibold text-slate-700 mb-1">Store Password</label>
+                    <input name="password" type="password" className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 ring-emerald-500" placeholder="Store password" />
+                  </div>
+                  <button type="submit" className="w-full bg-emerald-600 text-white font-bold py-3 rounded-xl hover:bg-emerald-700 transition-colors">Complete Setup</button>
+                  <button type="button" onClick={() => setView('landing')} className="w-full mt-3 text-slate-400 hover:text-slate-600 font-medium py-2">Cancel</button>
+                </form>
+              </div>
+            </div>
+          )}
           {view === 'pin' && (<div className="min-h-screen bg-slate-50 flex items-center justify-center p-4"><div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm text-center"><div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4"><Lock className="w-8 h-8 text-emerald-600" /></div><h2 className="text-xl font-bold mb-2 text-slate-800">Enter Access {loginMode === 'pin' ? 'PIN' : 'Password'}</h2><p className="text-sm text-slate-500 mb-6">Login as Owner or Cashier</p>
 {loginMode === 'pin' ? (
   <>
