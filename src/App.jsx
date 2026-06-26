@@ -237,7 +237,8 @@ function safeJSONParse(str, fallback = {}) {
       try {
         const raw = localStorage.getItem('db_session');
         if (!raw) return; // Not connected — skip silently
-        const { url, token } = safeJSONParse(raw) || {};
+        const { url, token: parsedToken, authToken } = safeJSONParse(raw) || {};
+        const token = parsedToken || authToken;
         if (!url || !token) return;
         const r = await fetch('/api/sync', {
           method: 'POST',
@@ -275,7 +276,8 @@ function safeJSONParse(str, fallback = {}) {
       try {
         const raw = localStorage.getItem('db_session');
         if (!raw) return false;
-        const { url, token } = safeJSONParse(raw) || {};
+        const { url, token: parsedToken, authToken } = safeJSONParse(raw) || {};
+        const token = parsedToken || authToken;
         if (!url || !token) return false;
         
         const res = await fetch('/api/pull', {
@@ -3486,7 +3488,8 @@ const PrintableStockForm = ({ products, settings }) => {
       const generateCashierQR = (cashier) => {
         const raw = localStorage.getItem('db_session');
         if (!raw) return toast.error('No database connection active.');
-        const { url, token } = safeJSONParse(raw) || {};
+        const { url, token: parsedToken, authToken } = safeJSONParse(raw) || {};
+        const token = parsedToken || authToken;
         
         const payload = {
           url,
@@ -5055,7 +5058,7 @@ id,name,qty,barcode,date,cashierName
           const db_url = params.get('db_url');
           const db_token = params.get('db_token');
           if (db_url && db_token) {
-            localStorage.setItem('db_session', JSON.stringify({ url: db_url, authToken: db_token }));
+            localStorage.setItem('db_session', JSON.stringify({ url: db_url, token: db_token }));
             
             // Re-initialize app state for owner
             setCurrentUser({ role: 'owner' });
