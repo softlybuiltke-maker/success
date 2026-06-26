@@ -665,6 +665,12 @@ function safeJSONParse(str, fallback = {}) {
       const [otp, setOtp] = useState('');
       const [loading, setLoading] = useState(false);
 
+      useEffect(() => {
+        if (!isBlockedByAdmin && !isPeriodExpired) {
+          onUnlock(); // Instantly unlock and bypass the PIN screen
+        }
+      }, [isBlockedByAdmin, isPeriodExpired, onUnlock]);
+
       const checkLockPin = (v) => {
         if (v.length > 8) return;
         setPin(v);
@@ -842,7 +848,7 @@ function safeJSONParse(str, fallback = {}) {
                     </label>
                   </div>
                   <div className="md:col-span-2 pt-4 border-t border-amber-200">
-                    <button onClick={onLock} className="btn-primary bg-amber-600 hover:bg-amber-700 shadow-amber-200">Lock POS Instantly</button>
+                    {/* Lock POS Instantly button removed */}
                   </div>
                 </div>
               </section>
