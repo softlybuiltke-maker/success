@@ -649,7 +649,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
     };
 
     // Lock Screen Component
-    const LockScreen = ({ correctPin, onUnlock, isPeriodExpired, isBlockedByAdmin, recoveryPin, storeHandle }) => {
+    const LockScreen = ({ correctPin, onUnlock, isPeriodExpired, isBlockedByAdmin, recoveryPin, storeHandle, onForceLogout }) => {
       const [pin, setPin] = useState('');
       const [otp, setOtp] = useState('');
       const [loading, setLoading] = useState(false);
