@@ -3140,7 +3140,9 @@ const PrintableStockForm = ({ products, settings }) => {
           const raw = localStorage.getItem('db_session');
           if (raw) {
             const parsed = safeJSONParse(raw);
-            if (parsed && parsed.url && parsed.token) {
+            const tkn = parsed?.token || parsed?.authToken;
+            if (parsed && parsed.url && tkn) {
+              parsed.token = tkn;
               setDbUrl(parsed.url);
               setDbToken(parsed.token);
               setIsConnected(true);
@@ -5673,6 +5675,15 @@ id,name,qty,barcode,date,cashierName
           const data = await res.json();
           if (data.ok) {
             toast.success('Admin OTP verified! Access granted.');
+            toast.loading('Restoring your store data...', { id: 'admin-recovery' });
+            const pulled = await tursoPullAll();
+            if (pulled) {
+               toast.success('Store data restored!', { id: 'admin-recovery' });
+               setTimeout(() => window.location.reload(), 500);
+               return;
+            } else {
+               toast.success('Connected, but no data found in cloud.', { id: 'admin-recovery' });
+            }
             setSettings(prev => {
               const newSettings = { ...prev, storeHandle: data.handle || prev?.storeHandle };
               if (typeof saveDataToDB !== 'undefined') saveDataToDB('settings', newSettings);
@@ -5727,8 +5738,14 @@ id,name,qty,barcode,date,cashierName
                     
                     const session = safeJSONParse(localStorage.getItem('sb_session') || '{}');
                     localStorage.setItem('sb_session', JSON.stringify({ ...session, view: 'pin' }));
-                    toast.success('Recovery successful! Connecting...', { id: toastId });
-                    setTimeout(() => window.location.reload(), 1500);
+                    toast.success('Recovery successful! Downloading store data...', { id: toastId });
+                    const pulled = await tursoPullAll();
+                    if (pulled) {
+                      toast.success('Store data fully restored!', { id: toastId });
+                    } else {
+                      toast.success('Connected, but cloud store is empty.', { id: toastId });
+                    }
+                    setTimeout(() => window.location.reload(), 1000);
                   } catch (err) {
                     toast.error('Service temporarily unavailable. Please try again later.' || 'Recovery failed', { id: toastId });
                   }
