@@ -2660,8 +2660,17 @@ const PrintableStockForm = ({ products, settings }) => {
             </button>
             <button 
               onClick={() => {
+                const userInput = window.prompt("Enter number of products per page (20-50):", "20");
+                if (userInput === null) return; // Cancelled
+                
+                const selectedNum = parseInt(userInput, 10);
+                if (isNaN(selectedNum) || selectedNum < 20 || selectedNum > 50) {
+                  toast.error("Please enter a valid number between 20 and 50.");
+                  return;
+                }
+
                 const doc = new jsPDF();
-                const itemsPerPage = 20;
+                const itemsPerPage = selectedNum;
                 const rows = [...products];
                 const remainder = rows.length % itemsPerPage;
                 let rowsToAdd = remainder === 0 && rows.length > 0 ? 0 : itemsPerPage - remainder;
