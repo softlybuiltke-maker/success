@@ -828,10 +828,27 @@ function safeJSONParse(str, fallback = {}) {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-semibold text-amber-900 mb-1">Period (Days)</label>
-                    <input type="number" className="input-field border-amber-200 focus:border-amber-500 focus:ring-amber-200" value={settings.periodInDays || ''} onChange={e => updateSettings({ ...settings, periodInDays: parseInt(e.target.value) || 0 })} placeholder="e.g. 30" />
-                    <p className="text-xs text-amber-700 mt-2">Set the period in days.</p>
+                    <label className="block text-sm font-semibold text-amber-900 mb-1">Period Duration</label>
+                    <div className="flex gap-2">
+                      <input type="number" className="input-field border-amber-200 focus:border-amber-500 focus:ring-amber-200 flex-1" value={settings.periodInDays || ''} onChange={e => updateSettings({ ...settings, periodInDays: parseInt(e.target.value) || 0 })} placeholder="e.g. 30" />
+                      <select className="input-field border-amber-200 focus:border-amber-500 focus:ring-amber-200 w-32" value={settings.periodUnit || 'days'} onChange={e => updateSettings({ ...settings, periodUnit: e.target.value })}>
+                        <option value="days">Days</option>
+                        <option value="seconds">Seconds</option>
+                      </select>
+                    </div>
+                    <p className="text-xs text-amber-700 mt-2">Set the duration for the lock period.</p>
                   </div>
+                  {settings.periodStartDate && (
+                    <div className="flex justify-between items-center bg-amber-50 p-3 rounded-lg border border-amber-100">
+                      <div>
+                        <div className="text-sm font-semibold text-amber-900">Reset Timer</div>
+                        <div className="text-xs text-amber-700">Restart the period from right now.</div>
+                      </div>
+                      <button onClick={() => updateSettings({ ...settings, periodStartDate: Date.now() })} className="px-3 py-1.5 bg-amber-500 text-white text-xs font-bold rounded-lg hover:bg-amber-600">
+                        Reset Now
+                      </button>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between bg-amber-100/50 p-4 rounded-xl border border-amber-200">
                     <div>
                       <div className="font-semibold text-sm text-amber-900">Enable Period Lock</div>
@@ -5284,7 +5301,7 @@ id,name,qty,barcode,date,cashierName
 
         const checkPeriod = () => {
           const elapsed = Date.now() - superAdminSettings.periodStartDate;
-          const maxElapsed = superAdminSettings.periodInDays * 24 * 60 * 60 * 1000;
+          const maxElapsed = superAdminSettings.periodUnit === 'seconds' ? superAdminSettings.periodInDays * 1000 : superAdminSettings.periodInDays * 24 * 60 * 60 * 1000;
           if (elapsed >= maxElapsed) {
             setIsPeriodExpired(true);
             setIsLocked(true);
@@ -5294,9 +5311,10 @@ id,name,qty,barcode,date,cashierName
         };
 
         checkPeriod();
-        const interval = setInterval(checkPeriod, 60000);
+        const checkIntervalMs = superAdminSettings.periodUnit === 'seconds' ? 1000 : 60000;
+        const interval = setInterval(checkPeriod, checkIntervalMs);
         return () => clearInterval(interval);
-      }, [superAdminSettings.enablePeriodLock, superAdminSettings.periodInDays, superAdminSettings.periodStartDate]);
+      }, [superAdminSettings.enablePeriodLock, superAdminSettings.periodInDays, superAdminSettings.periodUnit, superAdminSettings.periodStartDate]);
 
       // 2. Global Subscription check
       useEffect(() => {
