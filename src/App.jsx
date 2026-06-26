@@ -5455,7 +5455,7 @@ id,name,qty,barcode,date,cashierName
       <form onSubmit={async (e) => { 
         e.preventDefault();
         const handle = e.target.handle.value.trim().replace(/^@/, '');
-        const code = e.target.code.value.trim();
+        const code = e.target.code.value.replace(/\s/g, "");
         
         if (!handle || !code) return toast.error('Both fields required');
         
@@ -5486,7 +5486,7 @@ id,name,qty,barcode,date,cashierName
         <label className="text-xs font-semibold text-slate-500 block mb-1">Store Handle</label>
         <input name="handle" defaultValue={settings?.storeHandle || ''} className="w-full p-3 border border-slate-200 rounded-xl mb-4 bg-slate-50 focus:bg-white focus:ring-2 ring-blue-500 outline-none" placeholder="@JohnsMart" required autoFocus={!settings?.storeHandle} />
         <label className="text-xs font-semibold text-slate-500 block mb-1">6-Digit OTP</label>
-        <input name="code" type="text" maxLength="6" pattern="\\d{6}" className="w-full p-3 border border-slate-200 rounded-xl mb-4 bg-slate-50 focus:bg-white focus:ring-2 ring-blue-500 outline-none tracking-[0.2em]" placeholder="123456" required autoFocus={!!settings?.storeHandle} />
+        <input name="code" type="text" className="w-full p-3 border border-slate-200 rounded-xl mb-4 bg-slate-50 focus:bg-white focus:ring-2 ring-blue-500 outline-none tracking-[0.2em]" placeholder="123456" required autoFocus={!!settings?.storeHandle} />
         <button type="submit" className="w-full mt-2 bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition-colors">Verify OTP & Login</button>
       </form>
       <button type="button" onClick={() => setView('pin')} className="mt-4 text-sm text-slate-400 hover:text-slate-700 font-medium">Back to Login</button>
