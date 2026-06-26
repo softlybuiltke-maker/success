@@ -1490,51 +1490,68 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 
     
 const PrintableStockForm = ({ products, settings }) => {
-  // Pad with empty rows to reach a minimum of 100
   const rows = [...products];
-  while (rows.length < 100) {
+  const itemsPerPage = 50;
+  
+  const remainder = rows.length % itemsPerPage;
+  let rowsToAdd = remainder === 0 && rows.length > 0 ? 0 : itemsPerPage - remainder;
+  if (rows.length === 0) rowsToAdd = itemsPerPage;
+  
+  for (let i = 0; i < rowsToAdd; i++) {
     rows.push({ id: crypto.randomUUID(), name: '', category: '', barcode: '', isBlank: true });
   }
 
+  const chunks = [];
+  for (let i = 0; i < rows.length; i += itemsPerPage) {
+    chunks.push(rows.slice(i, i + itemsPerPage));
+  }
+
   return (
-    <div className="bg-white text-black p-8 font-sans w-full mx-auto" style={{ maxWidth: '210mm' }}>
-      <div className="text-center mb-6">
-        <h1 className="text-2xl font-bold uppercase tracking-widest">{settings?.name || 'Store'}</h1>
-        <h2 className="text-xl font-semibold mt-2 text-slate-600">Inventory Checklist</h2>
-        <p className="text-sm text-slate-500 mt-1">Date: {new Date().toLocaleDateString()}</p>
-      </div>
-      <table className="w-full border-collapse text-sm">
-        <thead>
-          <tr className="bg-slate-100 print:bg-slate-100">
-            <th className="border border-slate-400 p-2 text-left w-8">#</th>
-            <th className="border border-slate-400 p-2 text-left">Product Name</th>
-            <th className="border border-slate-400 p-2 text-left w-32">Category</th>
-            <th className="border border-slate-400 p-2 text-left w-32">Barcode</th>
-            <th className="border border-slate-400 p-2 text-left w-24">Cost</th>
-            <th className="border border-slate-400 p-2 text-left w-24">Price</th>
-            <th className="border border-slate-400 p-2 text-left w-24">Physical Stock</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((p, i) => (
-            <tr key={p.id || i}>
-              <td className="border border-slate-400 p-2 text-center text-slate-500">{i + 1}</td>
-              <td className="border border-slate-400 p-2 font-medium">{p.name || ''}</td>
-              <td className="border border-slate-400 p-2 text-xs">{p.category || ''}</td>
-              <td className="border border-slate-400 p-2 text-xs font-mono">{p.barcode || ''}</td>
-              <td className="border border-slate-400 p-2"></td>
-              <td className="border border-slate-400 p-2"></td>
-              <td className="border border-slate-400 p-2"></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="bg-white text-black font-sans w-full mx-auto" style={{ maxWidth: '210mm' }}>
+      {chunks.map((chunk, chunkIdx) => (
+        <div key={chunkIdx} className="p-8 break-after-page" style={{ pageBreakAfter: 'always' }}>
+          <div className="text-center mb-6">
+            <h1 className="text-2xl font-bold uppercase tracking-widest">{settings?.name || 'Store'}</h1>
+            <h2 className="text-xl font-semibold mt-2 text-slate-600">Inventory Checklist (Page {chunkIdx + 1} / {chunks.length})</h2>
+            <p className="text-sm text-slate-500 mt-1">Date: {new Date().toLocaleDateString()}</p>
+          </div>
+          <table className="w-full border-collapse text-sm">
+            <thead>
+              <tr className="bg-slate-100 print:bg-slate-100">
+                <th className="border border-slate-400 p-2 text-left w-8">#</th>
+                <th className="border border-slate-400 p-2 text-left">Product Name</th>
+                <th className="border border-slate-400 p-2 text-left w-32">Category</th>
+                <th className="border border-slate-400 p-2 text-left w-32">Barcode</th>
+                <th className="border border-slate-400 p-2 text-left w-24">Cost</th>
+                <th className="border border-slate-400 p-2 text-left w-24">Price</th>
+                <th className="border border-slate-400 p-2 text-left w-24">Physical Stock</th>
+              </tr>
+            </thead>
+            <tbody>
+              {chunk.map((p, indexInChunk) => {
+                const absoluteIndex = chunkIdx * itemsPerPage + indexInChunk + 1;
+                return (
+                  <tr key={p.id || absoluteIndex}>
+                    <td className="border border-slate-400 p-2 text-center text-slate-500">{absoluteIndex}</td>
+                    <td className="border border-slate-400 p-2 font-medium">{p.name || ''}</td>
+                    <td className="border border-slate-400 p-2 text-xs">{p.category || ''}</td>
+                    <td className="border border-slate-400 p-2 text-xs font-mono">{p.barcode || ''}</td>
+                    <td className="border border-slate-400 p-2"></td>
+                    <td className="border border-slate-400 p-2"></td>
+                    <td className="border border-slate-400 p-2"></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ))}
     </div>
   );
 };
 
     const ProductPanel = ({ settings, superAdminSettings, products, setProducts, currentUser, processSale, printData, suppliers, customers, updateCustomers, stockHistory, setStockHistory, cart, setCart }) => {
-      const [search, setSearch] = useState(''); const [cat, setCat] = useState(''); const [scannerMode, setScannerMode] = useState(null); const [showImport, setShowImport] = useState(false); const [updateId, setUpdateId] = useState(null); const [form, setForm] = useState({ name: '', price: '', cost: '', stock: '', cat: '', code: '', isCommodity: false, unit: 'Kg', expiryDate: '' }); const [showBulkPriceUpdate, setShowBulkPriceUpdate] = useState(false); const [activeTab, setActiveTab] = useState('all'); const [editId, setEditId] = useState(null); const [editData, setEditData] = useState({}); const [isCheckingOut, setIsCheckingOut] = useState(false); const [showOrderModal, setShowOrderModal] = useState(false); const [showShoppingListModal, setShowShoppingListModal] = useState(false); const [shoppingListItems, setShoppingListItems] = useState([]); const [printShoppingListNow, setPrintShoppingListNow] = useState(false); const [selectedOrderItems, setSelectedOrderItems] = useState([]); const [initialSupplierId, setInitialSupplierId] = useState(null); const [showAttractMode, setShowAttractMode] = useState(false); const [showAddProduct, setShowAddProduct] = useState(false); const [isPrintingStockForm, setIsPrintingStockForm] = useState(false); const role = currentUser?.role; const perms = currentUser?.permissions || {};
+      const [search, setSearch] = useState(''); const [cat, setCat] = useState(''); const [scannerMode, setScannerMode] = useState(null); const [showImport, setShowImport] = useState(false); const [updateId, setUpdateId] = useState(null); const [form, setForm] = useState({ name: '', price: '', cost: '', stock: '', cat: '', code: '', isCommodity: false, unit: 'Kg', expiryDate: '' }); const [showBulkPriceUpdate, setShowBulkPriceUpdate] = useState(false); const [activeTab, setActiveTab] = useState('all'); const [editId, setEditId] = useState(null); const [editData, setEditData] = useState({}); const [isCheckingOut, setIsCheckingOut] = useState(false); const [showOrderModal, setShowOrderModal] = useState(false); const [showShoppingListModal, setShowShoppingListModal] = useState(false); const [shoppingListItems, setShoppingListItems] = useState([]); const [printShoppingListNow, setPrintShoppingListNow] = useState(false); const [selectedOrderItems, setSelectedOrderItems] = useState([]); const [initialSupplierId, setInitialSupplierId] = useState(null); const [showAttractMode, setShowAttractMode] = useState(false); const [showAddProduct, setShowAddProduct] = useState(false); const role = currentUser?.role; const perms = currentUser?.permissions || {};
 
       // Voice Assistant States and Logic
       const [isListening, setIsListening] = useState(false);
@@ -2015,7 +2032,7 @@ const PrintableStockForm = ({ products, settings }) => {
 
 
       return (<div className="space-y-6 pb-20">
-        {isPrintingStockForm && createPortal(<PrintableStockForm products={products} settings={settings} />, document.getElementById('print-area'))}
+
         <div className="flex flex-col sm:flex-row justify-between gap-4">
           <div className="sb-page-title">
             <h2 className="text-2xl font-bold text-slate-800">Products</h2>
@@ -2024,7 +2041,7 @@ const PrintableStockForm = ({ products, settings }) => {
           <div className="flex gap-2 flex-wrap sb-quick-actions">
             {(role === 'owner' || perms.editProducts) && <button onClick={() => setShowAddProduct(v => !v)} className={`btn-primary px-4 py-2 ${showAddProduct ? 'bg-slate-600 hover:bg-slate-700' : 'bg-emerald-600 hover:bg-emerald-700'}`}>{showAddProduct ? <><X className="w-4 h-4" /> Close</> : <><Plus className="w-4 h-4" /> Add New Product</>}</button>}
             <button onClick={(e) => { e.stopPropagation(); setShowAttractMode(true) }} className="btn-primary bg-purple-600 hover:bg-purple-700 px-4 py-2"><Play className="w-4 h-4" /> Attract Mode</button>
-            {role === 'owner' && <button onClick={() => { setIsPrintingStockForm(true); setTimeout(() => { window.print(); setIsPrintingStockForm(false); }, 200); }} className="btn-primary bg-slate-800 hover:bg-slate-900 px-4 py-2"><Printer className="w-4 h-4" /> Print Stock Form</button>}
+
             <button onClick={() => setShowImport(true)} className="btn-primary px-4 py-2"><FileText className="w-4 h-4" /> Import List</button>
             {(role === 'owner' || perms.bulkPriceUpdate) && <button onClick={() => setShowBulkPriceUpdate(true)} className="btn-primary bg-blue-600 hover:bg-blue-700 px-4 py-2"><Edit2 className="w-4 h-4" /> Bulk Update</button>}
             {settings.showScan && (<><button onClick={() => setScannerMode('stock')} className="btn-primary px-4 py-2"><PackagePlus className="w-4 h-4" /> Scan to Stock</button>{settings.showScanToSell && <button onClick={() => setScannerMode('sell')} className="btn-primary px-4 py-2"><Scan className="w-4 h-4" /> Scan to Sell</button>}</>)}
@@ -2516,6 +2533,7 @@ const PrintableStockForm = ({ products, settings }) => {
 
 
     const SummaryPanel = ({ products, salesHistory, setSalesHistory, expenses, debts, settings, stockHistory, setStockHistory, currentUser, onCancelSale }) => {
+      const [isPrintingStockForm, setIsPrintingStockForm] = useState(false);
       const [view, setView] = useState('none');
       const [salesSearch, setSalesSearch] = useState(''); const [stockSearch, setStockSearch] = useState('');
       const [salesDateRange, setSalesDateRange] = useState({ start: '', end: '' });
@@ -2630,7 +2648,20 @@ const PrintableStockForm = ({ products, settings }) => {
         </div>
         <div className="flex gap-4 flex-wrap"><button onClick={() => setView('sales')} className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3 rounded-xl shadow-lg shadow-emerald-100 font-medium"><FileText className="w-5 h-5" /> View Sales History</button><button onClick={() => setView('stock')} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-xl shadow-lg shadow-blue-100 font-medium"><ClipboardList className="w-5 h-5" /> View Stock History</button></div>
         {view === 'sales' && (<HistoryModal title="Sales History" searchVal={salesSearch} onSearchChange={setSalesSearch} dateRange={salesDateRange} onDateChange={setSalesDateRange} onClose={() => setView('none')} onClear={() => clear('sales')} canDelete={currentUser?.role === 'owner'}><table className="w-full text-sm text-left"><thead className="bg-slate-50 text-slate-500 font-medium sticky top-0"><tr><th className="p-3">Date</th><th className="p-3">Product</th><th className="p-3">Qty</th><th className="p-3">Method</th><th className="p-3">Cashier</th><th className="p-3 text-right">Discount</th><th className="p-3 text-right">Total</th>{currentUser?.role === 'owner' && <th className="p-3 text-right">Action</th>}</tr></thead><tbody className="divide-y divide-slate-100">{filteredSales.slice((salesCurrentPage - 1) * 50, salesCurrentPage * 50).map(s => <tr key={s.id} className="hover:bg-slate-50"><td className="p-3 text-slate-500">{new Date(s.date).toLocaleString()}</td><td className="p-3 font-medium text-slate-800">{s.name}</td><td className="p-3">{s.quantity}</td><td className="p-3 uppercase text-xs font-bold text-slate-500">{s.paymentMethod}</td><td className="p-3 text-slate-500">{s.cashierName}</td><td className="p-3 text-right font-medium text-red-500">{s.discount?.value > 0 ? (s.discount?.type === 'percent' ? `${s.discount.value}%` : `Ksh. ${parseFloat(s.discount.value).toLocaleString()}`) : '-'}</td><td className="p-3 text-right font-bold text-emerald-600">Ksh. {(s.finalPrice).toLocaleString()}</td>{currentUser?.role === 'owner' && (<td className="p-3 text-right"><button onClick={() => onCancelSale(s.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg disabled:text-slate-300 disabled:hover:bg-transparent" title="Cancel Sale" disabled={s.paymentMethod === 'debt'}><Trash2 className="w-4 h-4" /></button></td>)}</tr>)}</tbody></table><Pagination totalItems={filteredSales.length} itemsPerPage={50} currentPage={salesCurrentPage} setCurrentPage={setSalesCurrentPage} /></HistoryModal>)}
-        {view === 'stock' && (<HistoryModal title="Stock History" searchVal={stockSearch} onSearchChange={setStockSearch} dateRange={stockDateRange} onDateChange={setStockDateRange} onClose={() => setView('none')} onClear={() => clear('stock')}><table className="w-full text-sm text-left"><thead className="bg-slate-50 text-slate-500 font-medium sticky top-0"><tr><th className="p-3">Date</th><th className="p-3">Product</th><th className="p-3">Added by</th><th className="p-3 text-right">Qty Added</th></tr></thead><tbody className="divide-y divide-slate-100">{filteredStock.slice((stockCurrentPage - 1) * 50, stockCurrentPage * 50).map((s, i) => <tr key={i} className="hover:bg-slate-50"><td className="p-3 text-slate-500">{new Date(s.date).toLocaleString()}</td><td className="p-3 font-medium text-slate-800">{s.name}</td><td className="p-3 text-slate-500">{s.cashierName}</td><td className="p-3 text-right font-bold text-blue-600">+{s.qty}</td></tr>)}</tbody></table><Pagination totalItems={filteredStock.length} itemsPerPage={50} currentPage={stockCurrentPage} setCurrentPage={setStockCurrentPage} /></HistoryModal>)}</div>);
+        {view === 'stock' && (<HistoryModal title="Stock History" searchVal={stockSearch} onSearchChange={setStockSearch} dateRange={stockDateRange} onDateChange={setStockDateRange} onClose={() => setView('none')} onClear={() => clear('stock')}><table className="w-full text-sm text-left"><thead className="bg-slate-50 text-slate-500 font-medium sticky top-0"><tr><th className="p-3">Date</th><th className="p-3">Product</th><th className="p-3">Added by</th><th className="p-3 text-right">Qty Added</th></tr></thead><tbody className="divide-y divide-slate-100">{filteredStock.slice((stockCurrentPage - 1) * 50, stockCurrentPage * 50).map((s, i) => <tr key={i} className="hover:bg-slate-50"><td className="p-3 text-slate-500">{new Date(s.date).toLocaleString()}</td><td className="p-3 font-medium text-slate-800">{s.name}</td><td className="p-3 text-slate-500">{s.cashierName}</td><td className="p-3 text-right font-bold text-blue-600">+{s.qty}</td></tr>)}</tbody></table><Pagination totalItems={filteredStock.length} itemsPerPage={50} currentPage={stockCurrentPage} setCurrentPage={setStockCurrentPage} /></HistoryModal>)}
+        {currentUser?.role === 'owner' && (
+          <div className="mt-8 flex justify-center border-t border-slate-200 pt-6">
+            <button 
+              onClick={() => { setIsPrintingStockForm(true); setTimeout(() => { window.print(); setIsPrintingStockForm(false); }, 200); }} 
+              className="flex items-center gap-2 bg-slate-800 hover:bg-slate-900 text-white px-6 py-3 rounded-xl shadow-lg shadow-slate-200 font-bold transition-all transform hover:scale-105"
+            >
+              <Printer className="w-5 h-5" /> 
+              Print Full Inventory Stock Form
+            </button>
+          </div>
+        )}
+        {isPrintingStockForm && createPortal(<PrintableStockForm products={products} settings={settings} />, document.getElementById('print-area'))}
+      </div>);
     };
 
     
