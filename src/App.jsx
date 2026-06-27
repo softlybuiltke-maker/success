@@ -278,8 +278,7 @@ function safeJSONParse(str, fallback = {}) {
       try {
         const raw = localStorage.getItem('db_session');
         if (!raw) return false;
-        const { url, token: parsedToken, authToken } = safeJSONParse(raw) || {};
-        const token = parsedToken || authToken;
+        const { url, token } = JSON.parse(raw);
         if (!url || !token) return false;
         
         const res = await fetch('/api/pull', {
@@ -289,25 +288,17 @@ function safeJSONParse(str, fallback = {}) {
         });
         const result = await res.json();
         
-        if (result.ok === false) { return { success: false, error: result.error }; }
-        if (result.ok && result.data) {
-          let hasRealData = false;
-          for (const [k, val] of Object.entries(result.data)) {
-            if (Array.isArray(val) && val.length > 0) hasRealData = true;
-            if (!Array.isArray(val) && val && Object.keys(val).length > 0) hasRealData = true;
+        if (result.ok && result.data && Object.keys(result.data).length > 0) {
+          // Data found! Save it to local DB
+          for (const [key, value] of Object.entries(result.data)) {
+            const cleanedValue = Array.isArray(value) ? value.filter(Boolean) : value;
+            await saveDataToDB(key, cleanedValue);
           }
-          if (hasRealData) {
-            // Data found! Save it to local DB
-            for (const [key, value] of Object.entries(result.data)) {
-              const cleanedValue = Array.isArray(value) ? value?.filter(Boolean) : value;
-              await saveDataToDB(key, cleanedValue);
-            }
-            return { success: true };
-          }
+          return true; // Indicates we pulled data
         }
-        return { success: false, error: 'Turso is empty' };
+        return false; // Turso is empty or failed
       } catch (err) {
-        if (import.meta.env.DEV) console.error("Turso pull error:", err);
+        console.error("Turso pull error:", err);
         return false;
       }
     };
@@ -3206,7 +3197,7 @@ const PrintableStockForm = ({ products, settings }) => {
             
             // Try to pull data first. If data exists, it will save to local DB and return true.
             tursoPullAll().then((pulled) => {
-              if (pulled && pulled.success) {
+              if (pulled) {
                 setStatusMsg('Data downloaded from Turso! Reloading app...');
                 setTimeout(() => window.location.reload(), 1500);
               } else {
@@ -5060,14 +5051,14 @@ id,name,qty,barcode,date,cashierName
               </nav>
               <div className="p-4 border-t border-slate-100 space-y-1">
                 {notifEnabled && <button onClick={() => { setShowNotif(true); setShowMenu(false); }} className="flex items-center gap-3 w-full p-3 text-slate-500 hover:bg-slate-50 rounded-lg relative"><Bell className="w-5 h-5" /> Notifications {unreadNotifCount > 0 && <span className="ml-auto bg-rose-500 text-white text-[10px] font-bold rounded-full min-w-[20px] h-5 px-1.5 flex items-center justify-center">{unreadNotifCount}</span>}</button>}<button onClick={() => { setShowCalc(!showCalc); setShowMenu(false); }} className="flex items-center gap-3 w-full p-3 text-slate-500 hover:bg-slate-50 rounded-lg"><CalcIcon className="w-5 h-5" /> Calculator</button>
-                <button onClick={async () => { toast.loading("Syncing...",{id:'sync'}); const p = await tursoPullAll(); if(p && p.success){ sessionStorage.setItem('just_pulled','true'); window.location.reload(); } else { await tursoSyncAll(); toast.success('Synced local data to cloud',{id:'sync'}); } }} className="flex items-center gap-3 w-full p-3 text-emerald-600 hover:bg-emerald-50 rounded-lg"><RefreshCw className="w-5 h-5" /> Sync Data</button>
+                <button onClick={async () => { toast.loading("Syncing...",{id:'sync'}); const p = await tursoPullAll(); if(p){ sessionStorage.setItem('just_pulled','true'); window.location.reload(); } else { await tursoSyncAll(); toast.success('Synced local data to cloud',{id:'sync'}); } }} className="flex items-center gap-3 w-full p-3 text-emerald-600 hover:bg-emerald-50 rounded-lg"><RefreshCw className="w-5 h-5" /> Sync Data</button>
                 <button onClick={onLogout} className="flex items-center gap-3 w-full p-3 text-red-500 hover:bg-red-50 rounded-lg"><LogOut className="w-5 h-5" /> Logout</button>
               </div>
             </aside>
           </div>
         )}
         <main className="flex-1 overflow-auto p-4 md:p-8 relative">
-          <header className="flex justify-between items-center mb-6"><div className="font-bold text-lg flex items-center gap-2 text-slate-800"><button onClick={() => setShowMenu(true)} className="p-2 bg-white rounded shadow text-slate-600 hover:bg-slate-50" aria-label="Open menu"><Menu className="w-5 h-5" /></button><img src={window.LOGO_DATA} alt="Softly Built" className="w-8 h-8 rounded object-contain md:hidden" /> <span className="md:hidden">{settings.name}</span></div><div className="flex gap-2 md:hidden">{notifEnabled && <button onClick={() => setShowNotif(true)} className="p-2 bg-white rounded shadow text-slate-600 relative"><Bell className="w-5 h-5" />{unreadNotifCount > 0 && <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center">{unreadNotifCount}</span>}</button>}<button onClick={async () => { toast.loading("Syncing...",{id:'sync'}); const p = await tursoPullAll(); if(p && p.success){ sessionStorage.setItem('just_pulled','true'); window.location.reload(); } else { await tursoSyncAll(); toast.success('Synced local data to cloud',{id:'sync'}); } }} className="p-2 bg-white rounded shadow text-emerald-600"><RefreshCw className="w-5 h-5" /></button><button onClick={() => setShowCalc(!showCalc)} className="p-2 bg-white rounded shadow text-slate-600"><CalcIcon className="w-5 h-5" /></button><button onClick={onLogout} className="p-2 bg-white rounded shadow text-red-500"><LogOut className="w-5 h-5" /></button></div></header>
+          <header className="flex justify-between items-center mb-6"><div className="font-bold text-lg flex items-center gap-2 text-slate-800"><button onClick={() => setShowMenu(true)} className="p-2 bg-white rounded shadow text-slate-600 hover:bg-slate-50" aria-label="Open menu"><Menu className="w-5 h-5" /></button><img src={window.LOGO_DATA} alt="Softly Built" className="w-8 h-8 rounded object-contain md:hidden" /> <span className="md:hidden">{settings.name}</span></div><div className="flex gap-2 md:hidden">{notifEnabled && <button onClick={() => setShowNotif(true)} className="p-2 bg-white rounded shadow text-slate-600 relative"><Bell className="w-5 h-5" />{unreadNotifCount > 0 && <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center">{unreadNotifCount}</span>}</button>}<button onClick={async () => { toast.loading("Syncing...",{id:'sync'}); const p = await tursoPullAll(); if(p){ sessionStorage.setItem('just_pulled','true'); window.location.reload(); } else { await tursoSyncAll(); toast.success('Synced local data to cloud',{id:'sync'}); } }} className="p-2 bg-white rounded shadow text-emerald-600"><RefreshCw className="w-5 h-5" /></button><button onClick={() => setShowCalc(!showCalc)} className="p-2 bg-white rounded shadow text-slate-600"><CalcIcon className="w-5 h-5" /></button><button onClick={onLogout} className="p-2 bg-white rounded shadow text-red-500"><LogOut className="w-5 h-5" /></button></div></header>
           <div className="max-w-7xl mx-auto pb-20 md:pb-0">{renderTab()}</div>{showCalc && <Calculator onClose={() => setShowCalc(false)} />}{notifEnabled && showNotif && <NotificationCenter notifications={notifications} readMap={readNotifs} onMarkRead={markNotifRead} onMarkAllRead={markAllNotifRead} onClose={() => setShowNotif(false)} onOpenSettings={() => { setShowNotif(false); setTab("settings"); }} />}
         </main>
         {createPortal(receiptData && <PrintableReceipt data={receiptData} />, document.getElementById('print-area'))}
@@ -5419,7 +5410,7 @@ id,name,qty,barcode,date,cashierName
              toast.loading("Retrieving all store data...", { id: 'recovery-pull' });
              const pulled = await tursoPullAll();
              sessionStorage.removeItem('pending_recovery_pull');
-             if (pulled && pulled.success) {
+             if (pulled) {
                 const newSettings = await loadDataFromDB('settings') || DEFAULT_SETTINGS;
                 setSettings(newSettings);
                 if (newSettings.ownerPin && v === newSettings.ownerPin) {
@@ -5741,10 +5732,10 @@ id,name,qty,barcode,date,cashierName
             toast.success('Admin OTP verified! Access granted.');
             toast.loading('Restoring your store data...', { id: 'admin-recovery' });
             const pulled = await tursoPullAll();
-            if (pulled && pulled.success) {
+            if (pulled) {
                toast.success('Store data restored!', { id: 'admin-recovery' });
             } else {
-               toast.success(pulled && pulled.error ? `Failed: ${pulled.error}` : 'Connected, but no data found in cloud.', { id: 'admin-recovery' });
+               toast.success('Connected, but no data found in cloud.', { id: 'admin-recovery' });
             }
             setTimeout(() => window.location.reload(), 1500);
             return;
@@ -5854,10 +5845,10 @@ id,name,qty,barcode,date,cashierName
                     localStorage.setItem('sb_session', JSON.stringify({ ...session, view: 'pin' }));
                     toast.success('Recovery successful! Downloading store data...', { id: toastId });
                     const pulled = await tursoPullAll();
-                    if (pulled && pulled.success) {
+                    if (pulled) {
                       toast.success('Store data fully restored!', { id: toastId });
                     } else {
-                      toast.success(pulled && pulled.error ? `Failed: ${pulled.error}` : 'Connected, but cloud store is empty.', { id: toastId });
+                      toast.success('Connected, but cloud store is empty.', { id: toastId });
                     }
                     setTimeout(() => window.location.reload(), 1500);
                   } catch (err) {
