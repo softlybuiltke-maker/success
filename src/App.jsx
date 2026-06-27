@@ -293,7 +293,6 @@ function safeJSONParse(str, fallback = {}) {
         if (result.ok && result.data) {
           let hasRealData = false;
           for (const [k, val] of Object.entries(result.data)) {
-            if (k === 'settings' || k === 'superAdminSettings') continue;
             if (Array.isArray(val) && val.length > 0) hasRealData = true;
           }
           if (hasRealData) {
