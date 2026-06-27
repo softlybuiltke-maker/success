@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 function safeJSONParse(str, fallback = {}) {
   if (!str) return fallback;
   try {
-    return safeJSONParse(str);
+    return JSON.parse(str);
   } catch (e) {
     console.error('JSON parse error:', e);
     return fallback;
