@@ -3618,7 +3618,49 @@ const PrintableStockForm = ({ products, settings }) => {
             ))}
           </div>
         </div>
-        <div className="bg-slate-50 p-4 rounded-lg border border-slate-200"><div className="flex justify-between items-center mb-4"><h3 className="font-semibold text-slate-800 flex items-center gap-2"><Lock className="w-4 h-4 text-emerald-600" /> Owner Login</h3><button onClick={() => setShowPins(!showPins)} className="text-sm text-emerald-600 font-medium hover:underline flex items-center gap-1">{showPins ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />} {showPins ? 'Hide' : 'Show'}</button></div><div className="flex gap-2 mb-3 bg-white p-1 rounded-lg border w-fit"><button type="button" onClick={() => update('loginMode', 'pin')} className={`px-4 py-1.5 rounded-md text-sm font-semibold transition-all ${(settings.loginMode || 'pin') === 'pin' ? 'bg-emerald-600 text-white shadow' : 'text-slate-600 hover:bg-slate-50'}`}>4-Digit PIN</button><button type="button" onClick={() => update('loginMode', 'password')} className={`px-4 py-1.5 rounded-md text-sm font-semibold transition-all ${settings.loginMode === 'password' ? 'bg-emerald-600 text-white shadow' : 'text-slate-600 hover:bg-slate-50'}`}>Password</button></div>{(settings.loginMode || 'pin') === 'pin' ? (<div><label className="text-xs text-slate-500 font-semibold">Owner PIN (4 digits)</label><input type={showPins ? "text" : "password"} maxLength={4} className="input-field text-center font-mono tracking-widest w-1/2 mt-1" value={settings.ownerPin} onChange={e => update('ownerPin', e.target.value.replace(/\D/g, '').slice(0, 4))} /></div>) : (<div><label className="text-xs text-slate-500 font-semibold">Owner Password (min 4 chars)</label><input type={showPins ? "text" : "password"} className="input-field w-full mt-1" placeholder="Enter a strong password" value={settings.ownerPassword || ''} onChange={e => update('ownerPassword', e.target.value.slice(0, 64))} /><p className="text-xs text-slate-400 mt-2">Cashiers will continue to use their 4-digit PINs.</p></div>)}</div>
+        <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="font-semibold text-slate-800 flex items-center gap-2">
+              <Lock className="w-4 h-4 text-emerald-600" /> Owner Login & Recovery
+            </h3>
+            <button onClick={() => setShowPins(!showPins)} className="text-sm text-emerald-600 font-medium hover:underline flex items-center gap-1">
+              {showPins ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />} {showPins ? 'Hide' : 'Show'}
+            </button>
+          </div>
+          
+          <div className="mb-4">
+            <label className="text-xs text-slate-500 font-semibold block mb-1">Store Handle (Used for Recovery)</label>
+            <input 
+              type="text" 
+              className="input-field w-full md:w-1/2" 
+              value={settings.storeHandle || ''} 
+              onChange={e => {
+                const val = e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '');
+                update('storeHandle', val);
+              }} 
+              placeholder="e.g. my-store" 
+            />
+            <p className="text-xs text-slate-400 mt-1">This handle uniquely identifies your store in the cloud.</p>
+          </div>
+
+          <div className="flex gap-2 mb-3 bg-white p-1 rounded-lg border w-fit">
+            <button type="button" onClick={() => update('loginMode', 'pin')} className={`px-4 py-1.5 rounded-md text-sm font-semibold transition-all ${(settings.loginMode || 'pin') === 'pin' ? 'bg-emerald-600 text-white shadow' : 'text-slate-600 hover:bg-slate-50'}`}>4-Digit PIN</button>
+            <button type="button" onClick={() => update('loginMode', 'password')} className={`px-4 py-1.5 rounded-md text-sm font-semibold transition-all ${settings.loginMode === 'password' ? 'bg-emerald-600 text-white shadow' : 'text-slate-600 hover:bg-slate-50'}`}>Password</button>
+          </div>
+          
+          {(settings.loginMode || 'pin') === 'pin' ? (
+            <div>
+              <label className="text-xs text-slate-500 font-semibold block mb-1">Owner PIN (4 digits)</label>
+              <input type={showPins ? "text" : "password"} maxLength={4} className="input-field text-center font-mono tracking-widest w-1/2" value={settings.ownerPin || ''} onChange={e => update('ownerPin', e.target.value.replace(/\D/g, '').slice(0, 4))} />
+            </div>
+          ) : (
+            <div>
+              <label className="text-xs text-slate-500 font-semibold block mb-1">Owner Password (min 4 chars)</label>
+              <input type={showPins ? "text" : "password"} className="input-field w-full" placeholder="Enter a strong password" value={settings.ownerPassword || ''} onChange={e => update('ownerPassword', e.target.value.slice(0, 64))} />
+              <p className="text-xs text-slate-400 mt-2">Cashiers will continue to use their 4-digit PINs.</p>
+            </div>
+          )}
+        </div>
         <div className="space-y-4 pt-4 border-t border-slate-100"><div className="flex justify-between items-center"><span className="text-slate-700 font-medium">Track Expiry Dates</span><button onClick={() => { update('trackExpiry', settings.trackExpiry === false ? true : false) }} className={`w-12 h-6 rounded-full relative transition-colors ${settings.trackExpiry !== false ? 'bg-emerald-500' : 'bg-slate-200'}`}><div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all ${settings.trackExpiry !== false ? 'left-7' : 'left-1'}`}></div></button></div><div className="flex justify-between items-center"><span className="text-slate-700 font-medium">Show Costs & Profit</span><button onClick={() => { update('showCosts', !settings.showCosts) }} className={`w-12 h-6 rounded-full relative transition-colors ${settings.showCosts ? 'bg-emerald-500' : 'bg-slate-200'}`}><div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all ${settings.showCosts ? 'left-7' : 'left-1'}`}></div></button></div><div className="flex justify-between items-center"><span className="text-slate-700 font-medium">Enable Scan Features</span><button onClick={() => { update('showScan', !settings.showScan) }} className={`w-12 h-6 rounded-full relative transition-colors ${settings.showScan ? 'bg-emerald-500' : 'bg-slate-200'}`}><div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all ${settings.showScan ? 'left-7' : 'left-1'}`}></div></button></div><div className="flex justify-between items-center"><span className="text-slate-700 font-medium">Enable 'Scan to Sell' Button</span><button onClick={() => { update('showScanToSell', !settings.showScanToSell) }} className={`w-12 h-6 rounded-full relative transition-colors ${settings.showScanToSell ? 'bg-emerald-500' : 'bg-slate-200'}`}><div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all ${settings.showScanToSell ? 'left-7' : 'left-1'}`}></div></button></div>
           <div className="flex justify-between items-center pt-2 border-t border-slate-100">
             <div>
