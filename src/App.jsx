@@ -164,9 +164,9 @@ function safeJSONParse(str, fallback = {}) {
       const transaction = db.transaction([PERF_STORE_NAME], 'readwrite');
       const store = transaction.objectStore(PERF_STORE_NAME);
       return new Promise((resolve, reject) => {
-        const request = store.put({ key: 'snapshots', value: buckets });
-        request.onsuccess = () => resolve();
-        request.onerror = () => reject(request.error);
+        store.put({ key: 'snapshots', value: buckets });
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = () => reject(transaction.error);
       });
     };
 
@@ -197,9 +197,9 @@ function safeJSONParse(str, fallback = {}) {
       const transaction = db.transaction([STORE_NAME], 'readwrite');
       const store = transaction.objectStore(STORE_NAME);
       return new Promise((resolve, reject) => {
-        const request = store.put({ key, value });
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
+        store.put({ key, value });
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = () => reject(transaction.error);
       });
     };
 
@@ -292,9 +292,9 @@ function safeJSONParse(str, fallback = {}) {
         if (result.ok === false) { return { success: false, error: result.error }; }
         if (result.ok && result.data) {
           let hasRealData = false;
-          for (const val of Object.values(result.data)) {
+          for (const [k, val] of Object.entries(result.data)) {
+            if (k === 'settings' || k === 'superAdminSettings') continue;
             if (Array.isArray(val) && val.length > 0) hasRealData = true;
-            if (!Array.isArray(val) && val !== null && Object.keys(val).length > 0) hasRealData = true;
           }
           if (hasRealData) {
             // Data found! Save it to local DB
