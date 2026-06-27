@@ -5705,9 +5705,7 @@ id,name,qty,barcode,date,cashierName
       <form onSubmit={async (e) => { 
         e.preventDefault();
         const code = e.target.code.value.replace(/\s/g, "");
-        
         if (!code) return toast.error('OTP required');
-        
         try {
           const res = await fetch('/api/registry-recover', {
             method: 'POST',
@@ -5719,13 +5717,13 @@ id,name,qty,barcode,date,cashierName
             toast.success('Admin OTP verified! Access granted.');
             toast.loading('Restoring your store data...', { id: 'admin-recovery' });
             const pulled = await tursoPullAll();
-            if (pulled) {
+            if (pulled && pulled.success) {
                toast.success('Store data restored!', { id: 'admin-recovery' });
-               setTimeout(() => window.location.reload(), 500);
-               return;
             } else {
-               toast.success('Connected, but no data found in cloud.', { id: 'admin-recovery' });
+               toast.success(pulled && pulled.error ? `Failed: ${pulled.error}` : 'Connected, but no data found in cloud.', { id: 'admin-recovery' });
             }
+            setTimeout(() => window.location.reload(), 1500);
+            return;
             setSettings(prev => {
               const newSettings = { ...prev, storeHandle: data.handle || prev?.storeHandle };
               if (typeof saveDataToDB !== 'undefined') saveDataToDB('settings', newSettings);
@@ -5782,12 +5780,12 @@ id,name,qty,barcode,date,cashierName
                     localStorage.setItem('sb_session', JSON.stringify({ ...session, view: 'pin' }));
                     toast.success('Recovery successful! Downloading store data...', { id: toastId });
                     const pulled = await tursoPullAll();
-                    if (pulled) {
+                    if (pulled && pulled.success) {
                       toast.success('Store data fully restored!', { id: toastId });
                     } else {
                       toast.success(pulled && pulled.error ? `Failed: ${pulled.error}` : 'Connected, but cloud store is empty.', { id: toastId });
                     }
-                    setTimeout(() => window.location.reload(), 1000);
+                    setTimeout(() => window.location.reload(), 1500);
                   } catch (err) {
                     toast.error('Service temporarily unavailable. Please try again later.' || 'Recovery failed', { id: toastId });
                   }
@@ -5835,7 +5833,13 @@ id,name,qty,barcode,date,cashierName
                     
                     const session = safeJSONParse(localStorage.getItem('sb_session') || '{}');
                     localStorage.setItem('sb_session', JSON.stringify({ ...session, view: 'pin' }));
-                    toast.success('Recovery successful! Connecting...', { id: toastId });
+                    toast.success('Recovery successful! Downloading store data...', { id: toastId });
+                    const pulled = await tursoPullAll();
+                    if (pulled && pulled.success) {
+                      toast.success('Store data fully restored!', { id: toastId });
+                    } else {
+                      toast.success(pulled && pulled.error ? `Failed: ${pulled.error}` : 'Connected, but cloud store is empty.', { id: toastId });
+                    }
                     setTimeout(() => window.location.reload(), 1500);
                   } catch (err) {
                     toast.error('Service temporarily unavailable. Please try again later.' || 'Recovery failed', { id: toastId });
