@@ -294,6 +294,7 @@ function safeJSONParse(str, fallback = {}) {
           let hasRealData = false;
           for (const [k, val] of Object.entries(result.data)) {
             if (Array.isArray(val) && val.length > 0) hasRealData = true;
+            if (!Array.isArray(val) && val && Object.keys(val).length > 0) hasRealData = true;
           }
           if (hasRealData) {
             // Data found! Save it to local DB
@@ -5401,7 +5402,7 @@ id,name,qty,barcode,date,cashierName
         setCurrentUserRaw(null); setPin(''); setViewRaw('landing'); setInitialTab('products');
       };
 
-      const checkPin = (v, isSubmit = false) => {
+      const checkPin = async (v, isSubmit = false) => {
         if (!isSubmit && loginMode === 'pin' && v.length > 8) return;
         setPin(v);
         
@@ -5414,6 +5415,30 @@ id,name,qty,barcode,date,cashierName
         }
 
         if (isSubmit || v.length === 4 || v.length === 8) {
+          if (sessionStorage.getItem('pending_recovery_pull') === 'true') {
+             toast.loading("Retrieving all store data...", { id: 'recovery-pull' });
+             const pulled = await tursoPullAll();
+             sessionStorage.removeItem('pending_recovery_pull');
+             if (pulled && pulled.success) {
+                const newSettings = await loadDataFromDB('settings') || DEFAULT_SETTINGS;
+                setSettings(newSettings);
+                if (newSettings.ownerPin && v === newSettings.ownerPin) {
+                   toast.success("Store data fully retrieved!", { id: 'recovery-pull' });
+                   setCurrentUser({ role: 'owner' });
+                   setInitialTab('products');
+                   setView('dash');
+                   setTimeout(() => window.location.reload(), 500);
+                } else {
+                   toast.error("Incorrect PIN for the recovered store.", { id: 'recovery-pull' });
+                   setPin('');
+                }
+             } else {
+                toast.error("Failed to retrieve data or store empty.", { id: 'recovery-pull' });
+                setPin('');
+             }
+             return;
+          }
+
           const isOwnerPinValid = settings.ownerPin && v === settings.ownerPin;
           const isOwnerPwdValid = settings.ownerPassword && v === settings.ownerPassword;
           const isFirstTime = !settings.ownerPin && !settings.ownerPassword && v.length >= 4;
@@ -5777,13 +5802,8 @@ id,name,qty,barcode,date,cashierName
                     
                     const session = safeJSONParse(localStorage.getItem('sb_session') || '{}');
                     localStorage.setItem('sb_session', JSON.stringify({ ...session, view: 'pin' }));
-                    toast.success('Recovery successful! Downloading store data...', { id: toastId });
-                    const pulled = await tursoPullAll();
-                    if (pulled && pulled.success) {
-                      toast.success('Store data fully restored!', { id: toastId });
-                    } else {
-                      toast.success(pulled && pulled.error ? `Failed: ${pulled.error}` : 'Connected, but cloud store is empty.', { id: toastId });
-                    }
+                    sessionStorage.setItem('pending_recovery_pull', 'true');
+                    toast.success('Recovery successful! Connecting...', { id: toastId });
                     setTimeout(() => window.location.reload(), 1500);
                   } catch (err) {
                     toast.error('Service temporarily unavailable. Please try again later.' || 'Recovery failed', { id: toastId });
