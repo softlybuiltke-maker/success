@@ -60,7 +60,6 @@ export default async function handler(req, res) {
           }
         }
       }
-      }
 
       if (key === 'settings' || key === 'superAdminSettings') {
         data[key] = parsedRows.length > 0 ? parsedRows[0] : null;

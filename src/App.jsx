@@ -3206,7 +3206,7 @@ const PrintableStockForm = ({ products, settings }) => {
             
             // Try to pull data first. If data exists, it will save to local DB and return true.
             tursoPullAll().then((pulled) => {
-              if (pulled) {
+              if (pulled && pulled.success) {
                 setStatusMsg('Data downloaded from Turso! Reloading app...');
                 setTimeout(() => window.location.reload(), 1500);
               } else {
