@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { Mail, Lock, Eye, EyeOff, User, Phone } from 'lucide-react';
 import { auth, googleProvider } from './firebase';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup } from 'firebase/auth';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, sendPasswordResetEmail } from 'firebase/auth';
 import toast from 'react-hot-toast';
 
 export const AuthScreen = ({ onLogin }) => {
   const [isLogin, setIsLogin] = useState(true);
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -106,6 +107,57 @@ export const AuthScreen = ({ onLogin }) => {
     }
   };
 
+  const handleResetPassword = async (e) => {
+    e.preventDefault();
+    if (!email) return toast.error('Please enter your email address');
+    
+    setLoading(true);
+    try {
+      await sendPasswordResetEmail(auth, email);
+      toast.success('Password reset link sent! Check your inbox.');
+      setIsForgotPassword(false);
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (isForgotPassword) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col">
+          <div className="p-8">
+            <div className="flex justify-center mb-6">
+              <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600">
+                <Lock className="w-8 h-8" />
+              </div>
+            </div>
+            <h2 className="text-2xl font-bold text-center text-slate-800 mb-2">Reset Password</h2>
+            <p className="text-center text-slate-500 mb-8">Enter your email and we'll send you a link to reset your password.</p>
+            
+            <form onSubmit={handleResetPassword} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
+                  <input type="email" value={email} onChange={e => setEmail(e.target.value)} required className="pl-10 w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="Enter your email" />
+                </div>
+              </div>
+              <button type="submit" disabled={loading} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-lg shadow-md transition-colors disabled:opacity-50 mt-4">
+                {loading ? 'Sending...' : 'Send Reset Link'}
+              </button>
+            </form>
+
+            <button onClick={() => setIsForgotPassword(false)} className="mt-6 w-full text-center text-sm font-semibold text-emerald-600 hover:text-emerald-700">
+              Back to Login
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col">
@@ -178,7 +230,7 @@ export const AuthScreen = ({ onLogin }) => {
 
             {isLogin && (
               <div className="flex justify-end">
-                <button type="button" className="text-sm font-semibold text-emerald-600 hover:text-emerald-700">Forgot Password?</button>
+                <button type="button" onClick={() => setIsForgotPassword(true)} className="text-sm font-semibold text-emerald-600 hover:text-emerald-700">Forgot Password?</button>
               </div>
             )}
 
