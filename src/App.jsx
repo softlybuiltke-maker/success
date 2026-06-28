@@ -193,7 +193,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 
     // --- TURSO SYNC UTILITIES ---
     // Best-effort, fully silent — never throws or blocks POS operations.
-    const tursoSync = async (key, data) => {
+    const tursoSyncImmediate = async (key, data) => {
       try {
         localStorage.setItem('has_pending_sync', 'true');
         if (!navigator.onLine) return false;
@@ -215,6 +215,35 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
       }
     };
 
+    const syncTimeouts = {};
+    const syncLatestData = {};
+    const syncPromises = {};
+
+    const tursoSync = (key, data) => {
+      syncLatestData[key] = data;
+      
+      if (!syncPromises[key]) {
+        let resolveFn;
+        syncPromises[key] = { promise: new Promise(resolve => { resolveFn = resolve; }), resolve: resolveFn };
+      }
+
+      if (syncTimeouts[key]) {
+        clearTimeout(syncTimeouts[key]);
+      }
+
+      syncTimeouts[key] = setTimeout(async () => {
+        const dataToSync = syncLatestData[key];
+        const currentResolve = syncPromises[key].resolve;
+        delete syncTimeouts[key];
+        delete syncPromises[key];
+
+        const ok = await tursoSyncImmediate(key, dataToSync);
+        currentResolve(ok);
+      }, 1500); // 1.5 second debounce to prevent scanner hanging and ensure perfect sync
+
+      return syncPromises[key].promise;
+    };
+
     // Sync all collections at once (used on initial connect if Turso is empty)
     const tursoSyncAll = async () => {
       try {
@@ -226,7 +255,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
             // Default empty state for collections if they haven't been created yet
             val = (k === 'settings' || k === 'superAdminSettings') ? {} : [];
           }
-          const ok = await tursoSync(k, val);
+          const ok = await tursoSyncImmediate(k, val);
           if (ok) successCount++;
         }
         if (successCount === keys.length) {
@@ -484,34 +513,34 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
             <div key={index} style={{ display: 'grid', gridTemplateColumns: '3fr 1fr 1fr 1fr', gap: '4px' }}>
               <span>{item.name}</span>
               <span style={{ textAlign: 'right' }}>{item.quantity}</span>
-              <span style={{ textAlign: 'right' }}>{(Number() || 0).toFixed(2)}</span>
+              <span style={{ textAlign: 'right' }}>{(Number(item.price) || 0).toFixed(2)}</span>
               <span style={{ textAlign: 'right' }}>{(Number(item.price * item.quantity) || 0).toFixed(2)}</span>
             </div>
           ))}
           {hr}
           <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
             <span>TOTAL:</span>
-            <span>{(Number() || 0).toFixed(2)}</span>
+            <span>{(Number(totals.grandTotal) || 0).toFixed(2)}</span>
           </div>
           {totals.totalDiscount > 0 && (
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span>Discount:</span>
-              <span>-{(Number() || 0).toFixed(2)}</span>
+              <span>-{(Number(totals.totalDiscount) || 0).toFixed(2)}</span>
             </div>
           )}
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <span>Subtotal:</span>
-            <span>{(Number() || 0).toFixed(2)}</span>
+            <span>{(Number(totals.subtotal) || 0).toFixed(2)}</span>
           </div>
           {hr}
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <span>PAID ({payment.method}):</span>
-            <span>{payment.method === 'Cash' ? (Number() || 0).toFixed(2) : (Number() || 0).toFixed(2)}</span>
+            <span>{payment.method === 'Cash' ? (Number(payment.cashGiven) || 0).toFixed(2) : (Number(totals.grandTotal) || 0).toFixed(2)}</span>
           </div>
           {payment.method === 'Cash' && payment.change > 0 && (
             <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}>
               <span>CHANGE:</span>
-              <span>{(Number() || 0).toFixed(2)}</span>
+              <span>{(Number(payment.change) || 0).toFixed(2)}</span>
             </div>
           )}
           <div style={{ height: '10px' }}></div>
@@ -551,22 +580,22 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 
         cart.forEach(item => {
           text += `${item.name}\n`;
-          text += `  ${item.quantity} x ${(Number() || 0).toFixed(2)} = ${(Number(item.price * item.quantity) || 0).toFixed(2)}\n`;
+          text += `  ${item.quantity} x ${(Number(item.price) || 0).toFixed(2)} = ${(Number(item.price * item.quantity) || 0).toFixed(2)}\n`;
         });
 
         text += hr;
 
-        text += `Subtotal: ${(Number() || 0).toFixed(2)}\n`;
+        text += `Subtotal: ${(Number(totals.subtotal) || 0).toFixed(2)}\n`;
         if (totals.totalDiscount > 0) {
-          text += `Discount: -${(Number() || 0).toFixed(2)}\n`;
+          text += `Discount: -${(Number(totals.totalDiscount) || 0).toFixed(2)}\n`;
         }
-        text += `TOTAL: ${(Number() || 0).toFixed(2)}\n`;
+        text += `TOTAL: ${(Number(totals.grandTotal) || 0).toFixed(2)}\n`;
         text += hr;
 
-        const paidAmount = payment.method === 'Cash' ? (Number() || 0).toFixed(2) : (Number() || 0).toFixed(2);
+        const paidAmount = payment.method === 'Cash' ? (Number(payment.cashGiven) || 0).toFixed(2) : (Number(totals.grandTotal) || 0).toFixed(2);
         text += `PAID (${payment.method}): ${paidAmount}\n`;
         if (payment.method === 'Cash' && payment.change > 0) {
-          text += `CHANGE: ${(Number() || 0).toFixed(2)}\n`;
+          text += `CHANGE: ${(Number(payment.change) || 0).toFixed(2)}\n`;
         }
         text += '\n';
         if (settings.receiptShowExtraInfo) text += `${settings.extraInfo}\n\n`;
@@ -1102,13 +1131,13 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
         message += `-----------------------------------\n`;
         cart.forEach(item => {
           message += `${item.name}\n`;
-          message += `  ${item.quantity} x ${(Number() || 0).toFixed(2)} = ${(Number(item.quantity * item.price) || 0).toFixed(2)}\n`;
+          message += `  ${item.quantity} x ${(Number(item.price) || 0).toFixed(2)} = ${(Number(item.quantity * item.price) || 0).toFixed(2)}\n`;
         });
         message += `-----------------------------------\n`;
-        message += `*TOTAL: Ksh ${(Number() || 0).toFixed(2)}*\n`;
-        if (totals.totalDiscount > 0) message += `(Discount Applied: Ksh ${(Number() || 0).toFixed(2)})\n`;
-        message += `Paid (${payment.method}): Ksh ${payment.method === 'Cash' ? (Number() || 0).toFixed(2) : (Number() || 0).toFixed(2)}\n`;
-        if (payment.method === 'Cash' && payment.change > 0) message += `Change: Ksh ${(Number() || 0).toFixed(2)}\n`;
+        message += `*TOTAL: Ksh ${(Number(totals.grandTotal) || 0).toFixed(2)}*\n`;
+        if (totals.totalDiscount > 0) message += `(Discount Applied: Ksh ${(Number(totals.totalDiscount) || 0).toFixed(2)})\n`;
+        message += `Paid (${payment.method}): Ksh ${payment.method === 'Cash' ? (Number(payment.cashGiven) || 0).toFixed(2) : (Number(totals.grandTotal) || 0).toFixed(2)}\n`;
+        if (payment.method === 'Cash' && payment.change > 0) message += `Change: Ksh ${(Number(payment.change) || 0).toFixed(2)}\n`;
         message += `\n${settings.receiptFooter}`;
         return message;
       };
@@ -1269,7 +1298,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
                 <table className="w-full text-left text-sm"><thead className="bg-slate-50"><tr><th className="p-2">Product</th><th className="p-2">Current</th><th className="p-2">New</th><th className="p-2">Diff</th></tr></thead>
                 <tbody>
                   {previewData.slice(0, 100).map(p => (
-                    <tr key={(p && p.id)} className="border-b"><td className="p-2">{p.name}</td><td className="p-2 text-slate-500">{(Number() || 0).toFixed(2)}</td><td className="p-2 font-bold text-emerald-600">{(Number() || 0).toFixed(2)}</td><td className="p-2 text-xs">{(Number(p.newPrice - p.price) || 0).toFixed(2)}</td></tr>
+                    <tr key={(p && p.id)} className="border-b"><td className="p-2">{p.name}</td><td className="p-2 text-slate-500">{(Number(p.price) || 0).toFixed(2)}</td><td className="p-2 font-bold text-emerald-600">{(Number(p.newPrice) || 0).toFixed(2)}</td><td className="p-2 text-xs">{(Number(p.newPrice - p.price) || 0).toFixed(2)}</td></tr>
                   ))}
                   {previewData.length > 100 && <tr><td colSpan="4" className="p-2 text-center text-slate-400">...and {previewData.length - 100} more</td></tr>}
                 </tbody></table>
@@ -3877,9 +3906,9 @@ id,name,qty,barcode,date,cashierName
                           {p.confidence === 'Low' && <div className="text-[10px] text-amber-600 font-bold mt-0.5">LOW CONFIDENCE</div>}
                         </td>
                         <td className="p-4 text-right font-medium">{p.stock}</td>
-                        <td className="p-4 text-right text-slate-500">{(Number() || 0).toFixed(1)}</td>
-                        <td className="p-4 text-right text-slate-500">{(Number() || 0).toFixed(1)}</td>
-                        <td className="p-4 text-right text-slate-500">{(Number() || 0).toFixed(1)}</td>
+                        <td className="p-4 text-right text-slate-500">{(Number(p.avgDailySales) || 0).toFixed(1)}</td>
+                        <td className="p-4 text-right text-slate-500">{(Number(p.weeklyForecast) || 0).toFixed(1)}</td>
+                        <td className="p-4 text-right text-slate-500">{(Number(p.monthlyForecast) || 0).toFixed(1)}</td>
                         <td className="p-4 text-right">
                           {p.daysRemaining === Infinity ? (
                             <span className="text-slate-400">&infin;</span>
@@ -3993,7 +4022,7 @@ id,name,qty,barcode,date,cashierName
           <div className="bg-slate-900 text-white p-3 rounded-xl shadow-xl text-sm border border-slate-700 min-w-[190px]">
             <p className="font-bold text-emerald-400 mb-2">{d.label}</p>
             <p className="flex justify-between gap-4"><span className="text-slate-400">Profit:</span><span className="font-semibold">Ksh {Math.round(d.profit).toLocaleString()}</span></p>
-            <p className="flex justify-between gap-4"><span className="text-slate-400">Quantity Sold:</span><span className="font-semibold">{Number((Number() || 0).toFixed(1)).toLocaleString()} units</span></p>
+            <p className="flex justify-between gap-4"><span className="text-slate-400">Quantity Sold:</span><span className="font-semibold">{Number((Number(d.quantity) || 0).toFixed(1)).toLocaleString()} units</span></p>
             <p className="flex justify-between gap-4"><span className="text-slate-400">Transactions:</span><span className="font-semibold">{d.transactions}</span></p>
           </div>
         );
@@ -4149,8 +4178,8 @@ id,name,qty,barcode,date,cashierName
             {/* Legend */}
             {hasData && monthlyData.length > 0 && (
               <div className="flex flex-wrap gap-x-6 gap-y-1 mt-4 text-xs text-slate-500 border-t border-slate-100 pt-4">
-                {chartBest && <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm inline-block bg-emerald-600"></span> Highest {metric === 'profit' ? 'Profit' : 'Qty'}: {chartBest.label} ({metric === 'profit' ? `Ksh ${Math.round(chartBest.value).toLocaleString()}` : `${Number((Number() || 0).toFixed(0)).toLocaleString()} units`})</span>}
-                {chartWorst && <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm inline-block bg-red-500"></span> Lowest {metric === 'profit' ? 'Profit' : 'Qty'}: {chartWorst.label} ({metric === 'profit' ? `Ksh ${Math.round(chartWorst.value).toLocaleString()}` : `${Number((Number() || 0).toFixed(0)).toLocaleString()} units`})</span>}
+                {chartBest && <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm inline-block bg-emerald-600"></span> Highest {metric === 'profit' ? 'Profit' : 'Qty'}: {chartBest.label} ({metric === 'profit' ? `Ksh ${Math.round(chartBest.value).toLocaleString()}` : `${Number((Number(chartBest.value) || 0).toFixed(0)).toLocaleString()} units`})</span>}
+                {chartWorst && <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm inline-block bg-red-500"></span> Lowest {metric === 'profit' ? 'Profit' : 'Qty'}: {chartWorst.label} ({metric === 'profit' ? `Ksh ${Math.round(chartWorst.value).toLocaleString()}` : `${Number((Number(chartWorst.value) || 0).toFixed(0)).toLocaleString()} units`})</span>}
                 {monthlyData.length > 0 && <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm inline-block bg-blue-500"></span> Data from {monthlyData[0]?.label} to {monthlyData[monthlyData.length - 1]?.label}</span>}
               </div>
             )}

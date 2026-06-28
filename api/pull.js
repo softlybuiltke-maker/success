@@ -2,6 +2,8 @@
 // Pulls all POS data from individual relational tables
 import { createClient } from '@libsql/client/web';
 
+export const maxDuration = 60; // Allow more time for large pull payloads
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');

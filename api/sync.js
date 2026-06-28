@@ -2,6 +2,8 @@
 // Completely rebuilds individual tables to give a relational structure
 import { createClient } from '@libsql/client/web';
 
+export const maxDuration = 60; // Allow more time for large sync payloads
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
