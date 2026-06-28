@@ -10,8 +10,10 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'Method not allowed' });
 
-  const { url, token } = req.body || {};
-  if (!url || !token) return res.status(400).json({ ok: false, error: 'Missing fields' });
+  const url = process.env.TURSO_DATABASE_URL;
+  const token = process.env.TURSO_AUTH_TOKEN;
+
+  if (!url || !token) return res.status(500).json({ ok: false, error: 'Database configuration missing on server.' });
 
   let client;
   try {

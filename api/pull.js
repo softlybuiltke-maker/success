@@ -9,8 +9,10 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'Method not allowed' });
 
-  const { url, token } = req.body || {};
-  if (!url || !token) return res.status(400).json({ ok: false, error: 'Fields url and token are required.' });
+  const url = process.env.TURSO_DATABASE_URL;
+  const token = process.env.TURSO_AUTH_TOKEN;
+
+  if (!url || !token) return res.status(500).json({ ok: false, error: 'Database configuration missing on server.' });
 
   let client;
   try {
@@ -19,6 +21,7 @@ export default async function handler(req, res) {
 
     // Ensure all tables exist so SELECT queries don't fail on new databases
     const schemas = [
+      `CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, firebase_uid TEXT UNIQUE, full_name TEXT, email TEXT, role TEXT, business_id TEXT, created_at TEXT, full_json TEXT)`,
       `CREATE TABLE IF NOT EXISTS products (id TEXT PRIMARY KEY, name TEXT, price REAL, costPrice REAL, barcode TEXT, expiryDate TEXT, quantity REAL, category TEXT, full_json TEXT)`,
       `CREATE TABLE IF NOT EXISTS salesHistory (id TEXT PRIMARY KEY, date TEXT, total REAL, full_json TEXT)`,
       `CREATE TABLE IF NOT EXISTS customers (id TEXT PRIMARY KEY, name TEXT, phone TEXT, full_json TEXT)`,
@@ -33,7 +36,7 @@ export default async function handler(req, res) {
       await client.execute(schema);
     }
 
-    const tables = ['products', 'salesHistory', 'customers', 'debts', 'paidDebts', 'expenses', 'stockHistory', 'settings', 'superAdminSettings'];
+    const tables = ['users', 'products', 'salesHistory', 'customers', 'debts', 'paidDebts', 'expenses', 'stockHistory', 'settings', 'superAdminSettings'];
     const data = {};
     
     // Use transaction/batch for faster reads

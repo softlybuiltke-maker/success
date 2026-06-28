@@ -9,9 +9,13 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'Method not allowed' });
 
-  const { url, token, key, value } = req.body || {};
-  if (!url || !token || !key || value === undefined) {
-    return res.status(400).json({ ok: false, error: 'Missing fields' });
+  const { key, value } = req.body || {};
+  const url = process.env.TURSO_DATABASE_URL;
+  const token = process.env.TURSO_AUTH_TOKEN;
+
+  if (!url || !token) return res.status(500).json({ ok: false, error: 'Database configuration missing on server.' });
+  if (!key || value === undefined) {
+    return res.status(400).json({ ok: false, error: 'Missing key or value' });
   }
 
   let client;
@@ -21,6 +25,7 @@ export default async function handler(req, res) {
 
     // 1. Table Schemas for all collections
     const schemas = {
+      users: `CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, firebase_uid TEXT UNIQUE, full_name TEXT, email TEXT, role TEXT, business_id TEXT, created_at TEXT, full_json TEXT)`,
       products: `CREATE TABLE IF NOT EXISTS products (id TEXT PRIMARY KEY, name TEXT, price REAL, costPrice REAL, barcode TEXT, expiryDate TEXT, quantity REAL, category TEXT, full_json TEXT)`,
       salesHistory: `CREATE TABLE IF NOT EXISTS salesHistory (id TEXT PRIMARY KEY, date TEXT, total REAL, full_json TEXT)`,
       customers: `CREATE TABLE IF NOT EXISTS customers (id TEXT PRIMARY KEY, name TEXT, phone TEXT, full_json TEXT)`,
@@ -60,7 +65,9 @@ export default async function handler(req, res) {
         parsedData.forEach((item, index) => {
           const id = String(item.id || item.date || index);
           
-          if (key === 'products') {
+          if (key === 'users') {
+            stmts.push({ sql: `INSERT INTO users (id, firebase_uid, full_name, email, role, business_id, created_at, full_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, args: [id, item.firebase_uid||'', item.full_name||'', item.email||'', item.role||'', item.business_id||'', item.created_at||'', JSON.stringify(item)] });
+          } else if (key === 'products') {
             stmts.push({ sql: `INSERT INTO products (id, name, price, costPrice, barcode, expiryDate, quantity, category, full_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, args: [id, item.name||'', item.price||0, item.costPrice||0, item.barcode||'', item.expiryDate||'', item.quantity||0, item.category||'', JSON.stringify(item)] });
           } else if (key === 'salesHistory') {
             stmts.push({ sql: `INSERT INTO salesHistory (id, date, total, full_json) VALUES (?, ?, ?, ?)`, args: [id, item.date||'', item.total||0, JSON.stringify(item)] });

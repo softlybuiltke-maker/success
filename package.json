@@ -13,6 +13,7 @@
   "dependencies": {
     "@libsql/client": "^0.17.4",
     "crypto-js": "^4.2.0",
+    "firebase": "^12.15.0",
     "html5-qrcode": "^2.3.8",
     "jspdf": "^2.5.1",
     "jspdf-autotable": "^3.5.31",

@@ -16,6 +16,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
     import { Html5Qrcode, Html5QrcodeScanner, Html5QrcodeSupportedFormats, Html5QrcodeScannerState } from 'html5-qrcode';
     import QRCode from 'qrcode';
     import CryptoJS from 'crypto-js';
+    import { AuthScreen } from './AuthScreen';
     
     window.LOGO_DATA = '/logo.png';
 
@@ -194,18 +195,13 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
     // Best-effort, fully silent — never throws or blocks POS operations.
     const tursoSync = async (key, data) => {
       try {
-        const raw = localStorage.getItem('db_session');
-        if (!raw) return false; // Not connected — skip silently
-        const { url, token } = JSON.parse(raw);
-        if (!url || !token) return false;
-        
         localStorage.setItem('has_pending_sync', 'true');
         if (!navigator.onLine) return false;
 
         const r = await fetch('/api/sync', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url, token, key, value: JSON.stringify(data) }),
+          body: JSON.stringify({ key, value: JSON.stringify(data) }),
         });
         if (r.ok) {
           // Stamp local write time so the polling loop doesn't re-download our own change
@@ -247,15 +243,11 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
         if (localStorage.getItem('has_pending_sync') === 'true') {
           await tursoSyncAll();
         }
-        const raw = localStorage.getItem('db_session');
-        if (!raw) return false;
-        const { url, token } = JSON.parse(raw);
-        if (!url || !token) return false;
         
         const res = await fetch('/api/pull', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url, token }),
+          body: JSON.stringify({}),
         });
         const result = await res.json();
         
@@ -621,43 +613,6 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
       );
     };
 
-    // Lock Screen Component
-    const LockScreen = ({ correctPin, onUnlock, isPeriodExpired, recoveryPin }) => {
-      const [pin, setPin] = useState('');
-      const [loginMode, setLoginMode] = useState('pin');
-      const checkLockPin = (v) => {
-        if (v.length > 8) return;
-        setPin(v);
-        const hash = CryptoJS.SHA256(v).toString();
-        if (hash === '3f4e90236d2b2b6c9957c846bf6ada7c528e227e8357a81a89239c4811193248' || (recoveryPin && v === recoveryPin)) {
-          onUnlock();
-          return;
-        }
-        if (!isPeriodExpired && v === correctPin) {
-          onUnlock();
-        }
-      };
-      return (
-        <div className="fixed inset-0 z-[200] bg-slate-900 flex flex-col items-center justify-center p-4">
-          <div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-sm text-center">
-            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Lock className="w-8 h-8 text-red-600" />
-            </div>
-            <h2 className="text-2xl font-bold mb-2 text-slate-800">{isPeriodExpired ? "Subscription Expired" : "System Locked"}</h2>
-            <p className="text-sm text-slate-500 mb-8">{isPeriodExpired ? "Please contact Super Admin to renew." : "Enter PIN to unlock"}</p>
-            <div className="flex justify-center gap-3 mb-8 h-3">
-              {Array.from({ length: Math.max(4, pin.length) }).map((_, i) => <div key={i} className={`w-3 h-3 rounded-full transition-all ${pin.length > i ? 'bg-red-600 scale-125' : 'bg-slate-200'}`}></div>)}
-            </div>
-            <div className="grid grid-cols-3 gap-4">
-              {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => <button key={n} onClick={() => checkLockPin(pin + n)} className="p-4 bg-slate-50 rounded-xl font-bold text-xl text-slate-700 hover:bg-red-50 hover:text-red-700 hover:shadow-md transition-all border border-slate-100">{n}</button>)}
-              <div />
-              <button onClick={() => checkLockPin(pin + '0')} className="p-4 bg-slate-50 rounded-xl font-bold text-xl text-slate-700 hover:bg-red-50 hover:text-red-700 hover:shadow-md transition-all border border-slate-100">0</button>
-              <button onClick={() => setPin(pin.slice(0, -1))} className="p-4 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"><Delete className="w-6 h-6" /></button>
-            </div>
-          </div>
-        </div>
-      );
-    };
 
     // Super Admin Panel Component
     const SuperAdminPanel = ({ settings, updateSettings, onExit, onLock, clearDataFromDB }) => {
@@ -4348,12 +4303,6 @@ id,name,qty,barcode,date,cashierName
       // ── Real-time sync: poll Turso every 5s for changes made on other devices ──
       const lastSyncTsRef = useRef(0);
       useEffect(() => {
-        const raw = localStorage.getItem('db_session');
-        if (!raw) return; // No DB connected — don't poll
-        let url, token;
-        try { ({ url, token } = JSON.parse(raw)); } catch { return; }
-        if (!url || !token) return;
-        const httpUrl = url.trim().replace(/^libsql:\/\//, 'https://');
 
         const applyLiveData = async (data) => {
           // Update React state AND local IndexedDB with the new data from Turso
@@ -4374,7 +4323,7 @@ id,name,qty,barcode,date,cashierName
             const pollRes = await fetch('/api/poll', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ url: httpUrl, token }),
+              body: JSON.stringify({}),
             });
             if (!pollRes.ok) return;
             const { last_modified } = await pollRes.json();
@@ -4776,8 +4725,8 @@ id,name,qty,barcode,date,cashierName
       const [view, setViewRaw] = useState(() => {
         try {
           const s = JSON.parse(localStorage.getItem('sb_session') || 'null');
-          return (s && s.view) ? s.view : 'landing';
-        } catch { return 'landing'; }
+          return (s && s.view) ? s.view : 'auth';
+        } catch { return 'auth'; }
       });
       const [currentUser, setCurrentUserRaw] = useState(() => {
         try {
@@ -5087,7 +5036,6 @@ id,name,qty,barcode,date,cashierName
 
       return (
         <>
-          {isLocked && <LockScreen correctPin={superAdminSettings.lockPin} onUnlock={() => setIsLocked(false)} isPeriodExpired={isPeriodExpired} recoveryPin={superAdminSettings.recoveryPin} />}
           {view === 'superAdmin' && (
             <SuperAdminPanel
               settings={superAdminSettings}
@@ -5097,71 +5045,7 @@ id,name,qty,barcode,date,cashierName
               clearDataFromDB={clearDataFromDB}
             />
           )}
-          {view === 'landing' && (<div className="min-h-screen bg-white flex flex-col"><nav className="px-6 py-4 border-b flex justify-between items-center"><div className="flex items-center gap-2 font-bold text-xl text-slate-800"><img src={window.LOGO_DATA} alt="Softly Built" className="w-10 h-10 rounded-lg object-contain shadow-lg shadow-emerald-200" /> Softly Built</div><button onClick={() => setView('pin')} className="text-emerald-600 font-semibold hover:text-emerald-700">Login</button></nav><div className="flex-1 flex flex-col items-center justify-center text-center px-6 py-20 bg-gradient-to-b from-slate-50 to-white"><h1 className="text-5xl md:text-6xl font-extrabold text-slate-900 mb-6 tracking-tight">Manage your shop with <br className="hidden md:block" /><span className="text-emerald-600">precision and ease.</span></h1><p className="text-lg text-slate-500 max-w-2xl mb-10 leading-relaxed">Softly Built is the professional point-of-sale system designed for modern retailers. Track inventory, manage debts, and visualize profits, now with full offline support.</p><div className="flex flex-col md:flex-row gap-4 justify-center"><button onClick={() => setView('pin')} className="group flex items-center justify-center gap-2 bg-emerald-600 text-white px-8 py-4 rounded-xl text-lg font-bold shadow-xl shadow-emerald-200 hover:bg-emerald-700 hover:shadow-2xl hover:-translate-y-1 transition-all">Launch System <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" /></button><button onClick={() => setView('qr_scan')} className="group flex items-center justify-center gap-2 bg-white text-emerald-600 border border-emerald-200 px-8 py-4 rounded-xl text-lg font-bold shadow-lg hover:bg-emerald-50 hover:shadow-xl hover:-translate-y-1 transition-all">Scan QR Login <QrCode className="w-5 h-5 group-hover:scale-110 transition-transform" /></button></div><button onClick={() => setView('cloud_recovery')} className="mt-8 text-emerald-600 font-bold hover:underline flex items-center justify-center gap-2 mx-auto"><Key className="w-4 h-4" /> Recover Existing Store</button></div><footer className="py-8 text-center text-slate-400 text-sm border-t"><p>&copy; {new Date().getFullYear()} Softly Built.</p></footer></div>)}
-          {view === 'pin' && (<div className="min-h-screen bg-slate-50 flex items-center justify-center p-4"><div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm text-center"><div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4"><Lock className="w-8 h-8 text-emerald-600" /></div><h2 className="text-xl font-bold mb-2 text-slate-800">Enter Access {loginMode === 'pin' ? 'PIN' : 'Password'}</h2><p className="text-sm text-slate-500 mb-6">Login as Owner or Cashier</p>
-{loginMode === 'pin' ? (
-  <>
-  <div className="flex justify-center gap-3 mb-8">{[0, 1, 2, 3].map(i => <div key={i} className={`w-3 h-3 rounded-full transition-all ${pin.length > i ? 'bg-emerald-600 scale-125' : 'bg-slate-200'}`}></div>)}</div><div className="grid grid-cols-3 gap-4">{[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => <button key={n} onClick={() => checkPin(pin + n)} className="p-4 bg-slate-50 rounded-xl font-bold text-xl text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 hover:shadow-md transition-all border border-slate-100">{n}</button>)}<div /><button onClick={() => checkPin(pin + '0')} className="p-4 bg-slate-50 rounded-xl font-bold text-xl text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 hover:shadow-md transition-all border border-slate-100">0</button><button onClick={() => setPin(pin.slice(0, -1))} className="p-4 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"><Delete className="w-6 h-6" /></button></div>
-  </>
-) : (
-  <form onSubmit={(e) => { e.preventDefault(); checkPin(pin, true); }} className="mb-4">
-    <input id="field-96" name="field-96" type={showLoginPwd ? "text" : "password"} value={pin} onChange={e => setPin(e.target.value)} className="w-full p-4 border border-slate-200 rounded-xl text-center text-xl bg-slate-50 focus:bg-white focus:ring-2 ring-emerald-500 outline-none" placeholder="Enter password" autoFocus />
-    <button type="button" onClick={() => setShowLoginPwd(!showLoginPwd)} className="text-xs text-slate-400 hover:text-slate-600 mt-2 block w-full text-right">{showLoginPwd ? 'Hide' : 'Show'} Password</button>
-    <button type="submit" className="w-full mt-4 bg-emerald-600 text-white font-bold py-3 rounded-xl hover:bg-emerald-700 transition-colors">Login</button>
-  </form>
-)}
-<button onClick={() => { setPin(''); setLoginMode(loginMode === 'pin' ? 'password' : 'pin'); }} className="mt-6 text-emerald-600 hover:text-emerald-700 font-medium text-sm block mx-auto underline decoration-dotted">Switch to {loginMode === 'pin' ? 'Password' : 'PIN'}</button>
-<button onClick={logout} className="mt-6 text-sm text-slate-400 hover:text-red-500 font-medium block mx-auto">Back to Home</button>{loginMode === 'pin' && <button onClick={() => { setPin(''); setView('recover'); }} className="mt-4 text-xs text-slate-500 hover:text-slate-700 block mx-auto">Forgot PIN?</button>}</div></div>)}
-          {view === 'recover' && (<div className="min-h-screen bg-slate-50 flex items-center justify-center p-4"><div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm text-center"><div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4"><Key className="w-8 h-8 text-amber-600" /></div><h2 className="text-xl font-bold mb-2 text-slate-800">Recover Access</h2><p className="text-sm text-slate-500 mb-6">Enter the master recovery PIN.</p><div className="flex justify-center gap-3 mb-8">{[0, 1, 2, 3, 4, 5].map(i => <div key={i} className={`w-3 h-3 rounded-full transition-all ${pin.length > i ? 'bg-amber-600 scale-125' : 'bg-slate-200'}`}></div>)}</div><div className="grid grid-cols-3 gap-4">{[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => <button key={n} onClick={() => checkRecoveryPin(pin + n)} className="p-4 bg-slate-50 rounded-xl font-bold text-xl text-slate-700 hover:bg-amber-50 hover:text-amber-700 hover:shadow-md transition-all border border-slate-100">{n}</button>)}<div /><button onClick={() => checkRecoveryPin(pin + '0')} className="p-4 bg-slate-50 rounded-xl font-bold text-xl text-slate-700 hover:bg-amber-50 hover:text-amber-700 hover:shadow-md transition-all border border-slate-100">0</button><button onClick={() => setPin(pin.slice(0, -1))} className="p-4 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"><Delete className="w-6 h-6" /></button></div><button onClick={() => { setPin(''); setView('pin'); }} className="mt-8 text-sm text-slate-400 hover:text-slate-700 font-medium">Back to Login</button></div></div>)}
-          
-          {view === 'cloud_recovery' && (
-            <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-              <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm text-center">
-                <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4"><Lock className="w-8 h-8 text-indigo-600" /></div>
-                <h2 className="text-xl font-bold mb-2 text-slate-800">Cloud Recovery</h2>
-                <p className="text-sm text-slate-500 mb-6">Enter your Store Handle and Master Password to reconnect.</p>
-                <form onSubmit={async (e) => { 
-                  e.preventDefault(); 
-                  const handle = e.target.handle.value.trim().replace(/^@/, ''); 
-                  const pwd = e.target.pwd.value; 
-                  if (!handle || !pwd) return toast.error('Both fields required');
-                  const toastId = toast.loading('Recovering store...');
-                  try {
-                    const creds = await downloadFromCloudRegistry(handle, pwd);
-                    localStorage.setItem('db_session', JSON.stringify(creds));
-                    const session = JSON.parse(localStorage.getItem('sb_session') || '{}');
-                    localStorage.setItem('sb_session', JSON.stringify({ ...session, view: 'pin' }));
-                    toast.success('Recovery successful! Connecting...', { id: toastId });
-                    setTimeout(() => window.location.reload(), 1500);
-                  } catch (err) {
-                    toast.error(err.message || 'Recovery failed', { id: toastId });
-                  }
-                }} className="mb-4 text-left">
-                  <label className="text-xs font-semibold text-slate-500 block mb-1">Store Handle</label>
-                  <input name="handle" className="w-full p-3 border border-slate-200 rounded-xl mb-4 bg-slate-50 focus:bg-white focus:ring-2 ring-indigo-500 outline-none" placeholder="@JohnsMart" required autoFocus />
-                  <label className="text-xs font-semibold text-slate-500 block mb-1">Master Password</label>
-                  <input name="pwd" type="password" className="w-full p-3 border border-slate-200 rounded-xl mb-4 bg-slate-50 focus:bg-white focus:ring-2 ring-indigo-500 outline-none" placeholder="••••••••" required />
-                  <button type="submit" className="w-full mt-2 bg-indigo-600 text-white font-bold py-3 rounded-xl hover:bg-indigo-700 transition-colors">Recover Store</button>
-                </form>
-                <button onClick={() => setView('landing')} className="mt-4 text-sm text-slate-400 hover:text-slate-600 font-medium block mx-auto">Cancel</button>
-              </div>
-            </div>
-          )}
-
-          {view === 'qr_scan' && <QRScanView onScanSuccess={(text) => { setScannedQrText(text); setPin(''); setView('qr_pin'); }} onClose={() => setView('landing')} />}
-
-          {view === 'qr_pin' && (
-            <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-              <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm text-center">
-                <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4"><Lock className="w-8 h-8 text-emerald-600" /></div>
-                <h2 className="text-xl font-bold mb-2 text-slate-800">Decrypt Connection</h2>
-                <p className="text-sm text-slate-500 mb-6">Enter your 4-digit PIN to securely connect to the store.</p>
-                <div className="flex justify-center gap-3 mb-8">{[0, 1, 2, 3].map(i => <div key={i} className={`w-3 h-3 rounded-full transition-all ${pin.length > i ? 'bg-emerald-600 scale-125' : 'bg-slate-200'}`}></div>)}</div>
-                <div className="grid grid-cols-3 gap-4">{[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => <button key={n} onClick={() => checkQrPin(pin + n)} className="p-4 bg-slate-50 rounded-xl font-bold text-xl text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 hover:shadow-md transition-all border border-slate-100">{n}</button>)}<div /><button onClick={() => checkQrPin(pin + '0')} className="p-4 bg-slate-50 rounded-xl font-bold text-xl text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 hover:shadow-md transition-all border border-slate-100">0</button><button onClick={() => setPin(pin.slice(0, -1))} className="p-4 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"><Delete className="w-6 h-6" /></button></div>
-                <button onClick={() => { setPin(''); setView('landing'); }} className="mt-8 text-sm text-slate-400 hover:text-red-500 font-medium">Cancel</button>
-              </div>
-            </div>
-          )}
+          {view === 'auth' && <AuthScreen onLogin={(user) => { setCurrentUser(user); setView('dash'); }} />}
 
           {view === 'dash' && <Dashboard currentUser={currentUser} onLogout={logout} settings={settings} onSettingsChange={updateSettings} initialTab={initialTab} superAdminSettings={superAdminSettings} setSettingsRaw={setSettings} setSuperAdminSettingsRaw={setSuperAdminSettings} />}
         </>
